@@ -98,6 +98,8 @@ button {
 .nav {
   display: grid;
   gap: 6px;
+  align-content: start;
+  flex: 1;
 }
 
 .nav-item {
@@ -128,6 +130,18 @@ button {
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.08);
   font-size: 15px;
+}
+
+.app-version {
+  margin-top: auto;
+  padding: 10px 12px;
+  border: 1px solid rgba(203, 213, 225, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: #94a3b8;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 .main {
@@ -2045,6 +2059,12 @@ input:disabled {
     padding-bottom: 2px;
   }
 
+  .app-version {
+    flex: 0 0 auto;
+    margin-top: 0;
+    white-space: nowrap;
+  }
+
   .nav-item {
     flex: 0 0 auto;
     grid-template-columns: 28px auto;
@@ -2116,6 +2136,10 @@ input:disabled {
   }
 
   .nav-item span:not(.nav-icon) {
+    display: none;
+  }
+
+  .app-version {
     display: none;
   }
 

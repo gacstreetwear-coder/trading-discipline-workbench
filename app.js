@@ -1,5 +1,6 @@
 const STORAGE_KEY = "trading-discipline-workbench:v1";
 const SNAPSHOT_KEY = "trading-discipline-workbench:snapshots:v1";
+const ERROR_LOG_KEY = "trading-discipline-workbench:client-errors:v1";
 const API_BASE = window.location.origin.startsWith("http") ? window.location.origin : "http://127.0.0.1:5173";
 const EVENT_CACHE_TTL = 60 * 60 * 6;
 const CANDLE_HISTORY_DAYS = 10000;
@@ -426,6 +427,7 @@ const defaultState = () => ({
 let state = loadState();
 ensureStateShape();
 let marketSyncing = false;
+let appMeta = { version: "--", health: null };
 const viewState = {
   positionFilter: "open",
   calendarMode: "month",
@@ -1088,6 +1090,49 @@ function toast(message) {
   toast.timer = setTimeout(() => node.classList.remove("show"), 2300);
 }
 
+function loadClientErrors() {
+  try {
+    const logs = JSON.parse(localStorage.getItem(ERROR_LOG_KEY) || "[]");
+    return Array.isArray(logs) ? logs : [];
+  } catch {
+    return [];
+  }
+}
+
+function recordClientError(source, error) {
+  try {
+    const message = error?.message || String(error || "未知错误");
+    const stack = error?.stack || "";
+    const logs = [
+      {
+        time: new Date().toISOString(),
+        source,
+        message,
+        stack: stack.slice(0, 4000),
+      },
+      ...loadClientErrors(),
+    ].slice(0, 20);
+    localStorage.setItem(ERROR_LOG_KEY, JSON.stringify(logs));
+  } catch {
+    // 诊断记录失败不能继续制造新错误。
+  }
+}
+
+function setupGlobalErrorHandlers() {
+  window.addEventListener("error", (event) => {
+    recordClientError("页面脚本错误", event.error || event.message);
+  });
+  window.addEventListener("unhandledrejection", (event) => {
+    recordClientError("异步任务错误", event.reason || "Promise rejection");
+  });
+}
+
+function renderVersionLabel() {
+  const node = $("#appVersionLabel");
+  if (!node) return;
+  node.textContent = appMeta.version && appMeta.version !== "--" ? `版本 ${appMeta.version}` : "版本 --";
+}
+
 async function apiJSON(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, {
     ...options,
@@ -1101,6 +1146,86 @@ async function apiJSON(path, options = {}) {
     throw new Error(payload.message || "行情服务请求失败");
   }
   return payload;
+}
+
+async function loadAppMeta() {
+  try {
+    const health = await apiJSON("/api/health");
+    appMeta = { version: health.version || "--", health };
+  } catch (error) {
+    appMeta = { version: "--", health: null };
+    recordClientError("读取版本信息失败", error);
+  }
+  renderVersionLabel();
+}
+
+async function copyText(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand("copy");
+  textarea.remove();
+}
+
+async function buildDiagnosticReport() {
+  let diagnostics = null;
+  try {
+    diagnostics = await apiJSON("/api/diagnostics");
+  } catch (error) {
+    recordClientError("读取诊断接口失败", error);
+  }
+
+  const openPositions = getOpenPositions();
+  const clientErrors = loadClientErrors();
+  const summary = {
+    version: appMeta.version || diagnostics?.version || "--",
+    url: window.location.href,
+    userAgent: navigator.userAgent,
+    positions: state.positions.length,
+    openPositions: openPositions.length,
+    trades: state.trades.length,
+    events: state.events.length,
+    journal: state.journal.length,
+    lastScanAt: state.marketData.lastScanAt || "",
+    lastEventSyncAt: state.marketData.lastEventSyncAt || "",
+    selectedSymbol: state.marketData.selectedSymbol || "",
+  };
+
+  return [
+    "交易纪律工作台诊断报告",
+    `生成时间：${new Date().toISOString()}`,
+    "",
+    "基本信息：",
+    JSON.stringify(summary, null, 2),
+    "",
+    "本地服务：",
+    diagnostics ? JSON.stringify({ ...diagnostics, logs: undefined }, null, 2) : "诊断接口不可用",
+    "",
+    "最近页面错误：",
+    clientErrors.length ? JSON.stringify(clientErrors.slice(0, 8), null, 2) : "无",
+    "",
+    "最近更新日志：",
+    diagnostics?.logs?.update || "无",
+  ].join("\n");
+}
+
+async function copyDiagnosticReport() {
+  try {
+    const report = await buildDiagnosticReport();
+    await copyText(report);
+    toast("诊断报告已复制，可以直接粘贴给我");
+  } catch (error) {
+    recordClientError("复制诊断报告失败", error);
+    toast("复制诊断报告失败，请截图发给我");
+  }
 }
 
 function setSyncing(isSyncing) {
@@ -1208,6 +1333,7 @@ async function loadCandles(symbol, shouldRender = true) {
 
 function render() {
   ensureStateShape();
+  renderVersionLabel();
   renderChartControls();
   renderDashboard();
   renderPositions();
@@ -4682,6 +4808,10 @@ function setupEvents() {
     toast("复盘报告已导出");
   });
 
+  $("#copyDiagnosticReportBtn").addEventListener("click", () => {
+    copyDiagnosticReport();
+  });
+
   $("#importEventCsvInput").addEventListener("change", async (event) => {
     const file = event.target.files[0];
     if (!file) return;
@@ -4716,8 +4846,10 @@ function setupEvents() {
   window.addEventListener("resize", () => drawMarketChart());
 }
 
+setupGlobalErrorHandlers();
 setupEvents();
 render();
+loadAppMeta();
 syncMarketData({ silent: true });
 if (shouldRefreshOfficialEvents()) syncOfficialEvents({ silent: true });
 setInterval(() => {

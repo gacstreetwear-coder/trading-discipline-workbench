@@ -19,6 +19,8 @@ from pathlib import Path
 
 ROOT = Path(os.environ.get("APP_STATIC_ROOT") or Path(__file__).resolve().parent).resolve()
 PORT = int(os.environ.get("PORT", "5173"))
+APP_VERSION = os.environ.get("APP_VERSION", "dev")
+APP_USER_DATA = Path(os.environ["APP_USER_DATA"]).resolve() if os.environ.get("APP_USER_DATA") else None
 EASTMONEY_QUOTE = "https://push2.eastmoney.com/api/qt/stock/get"
 EASTMONEY_KLINE = "https://push2his.eastmoney.com/api/qt/stock/kline/get"
 SINA_KLINE = "https://quotes.sina.cn/cn/api/json_v2.php/CN_MarketData.getKLineData"
@@ -112,6 +114,15 @@ FISCALDATA_PRIORITY_DATASETS = {
 }
 
 _cache: dict[str, tuple[float, object]] = {}
+
+
+def tail_file(path: Path | None, max_chars: int = 6000) -> str:
+    if not path or not path.exists():
+        return ""
+    try:
+        return path.read_text(encoding="utf-8", errors="ignore")[-max_chars:]
+    except OSError:
+        return ""
 
 
 def cache_get(key: str, ttl: int = CACHE_TTL):
@@ -1221,7 +1232,30 @@ class Handler(SimpleHTTPRequestHandler):
         query = urllib.parse.parse_qs(parsed.query)
         try:
             if parsed.path == "/api/health":
-                return self.json_response({"ok": True, "time": datetime.now().isoformat(timespec="seconds")})
+                return self.json_response(
+                    {
+                        "ok": True,
+                        "time": datetime.now().isoformat(timespec="seconds"),
+                        "version": APP_VERSION,
+                        "port": PORT,
+                    }
+                )
+            if parsed.path == "/api/diagnostics":
+                return self.json_response(
+                    {
+                        "ok": True,
+                        "time": datetime.now().isoformat(timespec="seconds"),
+                        "version": APP_VERSION,
+                        "port": PORT,
+                        "root": str(ROOT),
+                        "userData": str(APP_USER_DATA) if APP_USER_DATA else "",
+                        "platform": sys.platform,
+                        "python": sys.version.split()[0],
+                        "logs": {
+                            "update": tail_file(APP_USER_DATA / "update.log" if APP_USER_DATA else None),
+                        },
+                    }
+                )
             if parsed.path == "/api/quote":
                 return self.json_response(get_quote(query.get("symbol", [""])[0]))
             if parsed.path == "/api/candles":

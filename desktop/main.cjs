@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, shell } = require("electron");
+const { app, BrowserWindow, clipboard, dialog, shell } = require("electron");
 const { spawn } = require("child_process");
 const fs = require("fs");
 const http = require("http");
@@ -13,6 +13,7 @@ const BACKEND_PORT = 5199;
 let updatePromptOpen = false;
 let updateCheckInFlight = false;
 let installingUpdate = false;
+let backendShutdownInProgress = false;
 
 function projectRoot() {
   return path.resolve(__dirname, "..");
@@ -35,16 +36,141 @@ function updateLog(message, error) {
   }
 }
 
-function assertPortAvailable(port) {
-  return new Promise((resolve, reject) => {
+function tailFile(filePath, maxChars = 6000) {
+  try {
+    if (!fs.existsSync(filePath)) return "";
+    const content = fs.readFileSync(filePath, "utf8");
+    return content.slice(-maxChars);
+  } catch {
+    return "";
+  }
+}
+
+function diagnosticReport(context, error) {
+  const userData = app.getPath("userData");
+  return [
+    "交易纪律工作台诊断信息",
+    `时间：${new Date().toISOString()}`,
+    `场景：${context}`,
+    `版本：${app.getVersion()}`,
+    `系统：${process.platform} ${process.arch}`,
+    `Electron：${process.versions.electron}`,
+    `Node：${process.versions.node}`,
+    `应用路径：${app.getPath("exe")}`,
+    `数据目录：${userData}`,
+    `本地端口：${backendPort || BACKEND_PORT}`,
+    `后台服务PID：${backendProcess?.pid || "无"}`,
+    "",
+    "错误信息：",
+    error?.stack || error?.message || String(error || "无"),
+    "",
+    "最近更新日志：",
+    tailFile(path.join(userData, "update.log")) || "无",
+  ].join("\n");
+}
+
+async function showDiagnosticDialog(title, message, error, context) {
+  updateLog(`diagnostic-${context}`, error);
+  const result = await dialog.showMessageBox(mainWindow || undefined, {
+    type: "error",
+    buttons: ["复制诊断信息", "关闭"],
+    defaultId: 0,
+    cancelId: 1,
+    title,
+    message: title,
+    detail: `${message}\n\n如果需要我排查，点击「复制诊断信息」，然后粘贴到 Codex 对话里。`,
+  });
+  if (result.response === 0) {
+    clipboard.writeText(diagnosticReport(context, error));
+  }
+}
+
+function delay(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function runQuietProcess(command, args, timeoutMs = 5000) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+
+    let child = null;
+    try {
+      child = spawn(command, args, {
+        stdio: "ignore",
+        windowsHide: true,
+      });
+    } catch {
+      finish();
+      return;
+    }
+
+    child.once("error", finish);
+    child.once("exit", finish);
+    setTimeout(() => {
+      try {
+        child.kill();
+      } catch {
+        // 进程可能已经退出。
+      }
+      finish();
+    }, timeoutMs);
+  });
+}
+
+function isPortAvailable(port) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (available) => {
+      if (settled) return;
+      settled = true;
+      resolve(available);
+    };
+
     const server = net.createServer();
     server.on("error", () => {
-      reject(new Error(`本地端口 ${port} 被占用，请关闭已经运行的交易纪律工作台后再打开。`));
+      finish(false);
     });
     server.listen(port, "127.0.0.1", () => {
-      server.close(resolve);
+      server.close(() => finish(true));
     });
   });
+}
+
+async function cleanupStaleBackend(port) {
+  updateLog(`backend-port-${port}-busy-cleanup-start`);
+  if (process.platform === "win32") {
+    await runQuietProcess("taskkill", ["/IM", "trading-workbench-server.exe", "/T", "/F"]);
+  } else {
+    await runQuietProcess("pkill", ["-f", "trading-workbench-server"]);
+  }
+  await delay(800);
+}
+
+async function prepareBackendPort() {
+  if (await isPortAvailable(BACKEND_PORT)) {
+    return BACKEND_PORT;
+  }
+
+  await cleanupStaleBackend(BACKEND_PORT);
+  if (await isPortAvailable(BACKEND_PORT)) {
+    updateLog(`backend-port-${BACKEND_PORT}-recovered`);
+    return BACKEND_PORT;
+  }
+
+  for (let offset = 1; offset <= 20; offset += 1) {
+    const candidate = BACKEND_PORT + offset;
+    if (await isPortAvailable(candidate)) {
+      updateLog(`backend-port-fallback-${candidate}`);
+      return candidate;
+    }
+  }
+
+  throw new Error(`本地服务端口 ${BACKEND_PORT} 附近都被占用。请重启电脑后再打开交易纪律工作台。`);
 }
 
 function backendCommand() {
@@ -95,8 +221,7 @@ function waitForHealth(port, timeoutMs = 20000) {
 }
 
 async function startBackend() {
-  backendPort = BACKEND_PORT;
-  await assertPortAvailable(backendPort);
+  backendPort = await prepareBackendPort();
   const webRoot = resourcePath("web");
   const { command, args, cwd } = backendCommand();
   backendProcess = spawn(command, args, {
@@ -105,6 +230,8 @@ async function startBackend() {
       ...process.env,
       PORT: String(backendPort),
       APP_STATIC_ROOT: webRoot,
+      APP_VERSION: app.getVersion(),
+      APP_USER_DATA: app.getPath("userData"),
     },
     stdio: app.isPackaged ? "ignore" : "inherit",
     windowsHide: true,
@@ -113,7 +240,12 @@ async function startBackend() {
 
   backendProcess.on("exit", (code) => {
     if (!app.isQuiting && code !== 0) {
-      dialog.showErrorBox("本地服务已退出", "行情、事件和K线服务异常退出，请重新打开软件。");
+      showDiagnosticDialog(
+        "本地服务已退出",
+        "行情、事件和K线服务异常退出，请重新打开软件。",
+        new Error(`backend exited with code ${code}`),
+        "后台服务异常退出",
+      ).catch((error) => updateLog("diagnostic-dialog-failed", error));
     }
   });
 
@@ -166,6 +298,19 @@ function stopBackend(timeoutMs = 2000) {
       done();
     }, timeoutMs);
   });
+}
+
+async function quitAfterBackendStops(event) {
+  if (!backendProcess || backendShutdownInProgress || installingUpdate) {
+    app.isQuiting = true;
+    return;
+  }
+
+  event.preventDefault();
+  backendShutdownInProgress = true;
+  app.isQuiting = true;
+  await stopBackend(2500);
+  app.exit(0);
 }
 
 function createWindow() {
@@ -262,7 +407,12 @@ function setupAutoUpdater() {
     mainWindow?.setProgressBar(-1);
     if (installingUpdate) {
       installingUpdate = false;
-      dialog.showErrorBox("自动更新安装失败", "更新包已下载，但系统安装器没有成功接管。请到 GitHub Releases 手动下载安装包，或重新打开软件后再试。");
+      showDiagnosticDialog(
+        "自动更新安装失败",
+        "更新包已下载，但系统安装器没有成功接管。请到 GitHub Releases 手动下载安装包，或重新打开软件后再试。",
+        error,
+        "自动更新安装失败",
+      );
     }
   });
 }
@@ -288,7 +438,7 @@ async function installDownloadedUpdate() {
   } catch (error) {
     installingUpdate = false;
     updateLog("install-start-failed", error);
-    dialog.showErrorBox("自动更新安装失败", error.message || "无法启动更新安装器，请手动下载安装包。");
+    await showDiagnosticDialog("自动更新安装失败", error.message || "无法启动更新安装器，请手动下载安装包。", error, "自动更新启动失败");
   }
 }
 
@@ -312,7 +462,7 @@ async function boot() {
     setTimeout(checkForUpdates, 6000);
     setInterval(checkForUpdates, 6 * 60 * 60 * 1000);
   } catch (error) {
-    dialog.showErrorBox("交易纪律工作台启动失败", error.message || "本地服务无法启动。");
+    await showDiagnosticDialog("交易纪律工作台启动失败", error.message || "本地服务无法启动。", error, "启动失败");
     app.quit();
   }
 }
@@ -329,10 +479,7 @@ if (!locked) {
 
   app.whenReady().then(boot);
 
-  app.on("before-quit", () => {
-    app.isQuiting = true;
-    stopBackend();
-  });
+  app.on("before-quit", quitAfterBackendStops);
 
   app.on("window-all-closed", () => {
     app.quit();
