@@ -1,6 +1,6 @@
 {
   "name": "trading-discipline-workbench",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "个人股票交易纪律、复盘和行为纠偏工作台",
   "main": "desktop/main.cjs",
   "scripts": {
@@ -52,6 +52,7 @@
     "directories": {
       "output": "release"
     },
+    "icon": "assets/app-icon",
     "artifactName": "trading-discipline-workbench-${version}-${os}-${arch}.${ext}",
     "publish": [
       {
@@ -63,12 +64,14 @@
     ],
     "mac": {
       "category": "public.app-category.finance",
+      "icon": "assets/app-icon.icns",
       "target": [
         "dmg",
         "zip"
       ]
     },
     "win": {
+      "icon": "assets/app-icon.ico",
       "target": [
         {
           "target": "nsis",

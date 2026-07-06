@@ -12,6 +12,7 @@ let backendPort = null;
 const BACKEND_PORT = 5199;
 let updatePromptOpen = false;
 let updateCheckInFlight = false;
+let installingUpdate = false;
 
 function projectRoot() {
   return path.resolve(__dirname, "..");
@@ -19,6 +20,19 @@ function projectRoot() {
 
 function resourcePath(...parts) {
   return app.isPackaged ? path.join(process.resourcesPath, ...parts) : path.join(projectRoot(), ...parts);
+}
+
+function appIconPath() {
+  return app.isPackaged ? resourcePath("web", "assets", "app-icon.png") : resourcePath("assets", "app-icon.png");
+}
+
+function updateLog(message, error) {
+  try {
+    const line = `[${new Date().toISOString()}] ${message}${error ? ` ${error.stack || error.message || error}` : ""}\n`;
+    fs.appendFileSync(path.join(app.getPath("userData"), "update.log"), line);
+  } catch {
+    // 日志失败不能影响主流程。
+  }
 }
 
 function assertPortAvailable(port) {
@@ -94,6 +108,7 @@ async function startBackend() {
     },
     stdio: app.isPackaged ? "ignore" : "inherit",
     windowsHide: true,
+    detached: process.platform !== "win32",
   });
 
   backendProcess.on("exit", (code) => {
@@ -105,6 +120,54 @@ async function startBackend() {
   await waitForHealth(backendPort);
 }
 
+function stopBackend(timeoutMs = 2000) {
+  if (!backendProcess || backendProcess.killed) {
+    backendProcess = null;
+    return Promise.resolve();
+  }
+
+  const processToStop = backendProcess;
+  backendProcess = null;
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+
+    processToStop.once("exit", done);
+    try {
+      if (process.platform === "win32") {
+        spawn("taskkill", ["/pid", String(processToStop.pid), "/T", "/F"], { windowsHide: true }).once("exit", done);
+      } else {
+        try {
+          process.kill(-processToStop.pid, "SIGTERM");
+        } catch {
+          processToStop.kill("SIGTERM");
+        }
+      }
+    } catch {
+      done();
+    }
+
+    setTimeout(() => {
+      if (!settled && process.platform !== "win32") {
+        try {
+          process.kill(-processToStop.pid, "SIGKILL");
+        } catch {
+          try {
+            processToStop.kill("SIGKILL");
+          } catch {
+            // 已退出。
+          }
+        }
+      }
+      done();
+    }, timeoutMs);
+  });
+}
+
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1440,
@@ -113,6 +176,7 @@ function createWindow() {
     minHeight: 760,
     title: "交易纪律工作台",
     backgroundColor: "#f6f7fb",
+    icon: appIconPath(),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
@@ -133,8 +197,15 @@ function versionLabel(info) {
 
 function setupAutoUpdater() {
   autoUpdater.autoDownload = false;
-  autoUpdater.autoInstallOnAppQuit = false;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.autoRunAppAfterInstall = true;
   autoUpdater.allowPrerelease = false;
+  autoUpdater.logger = {
+    info: (message) => updateLog(`INFO ${message}`),
+    warn: (message) => updateLog(`WARN ${message}`),
+    error: (message) => updateLog(`ERROR ${message}`),
+    debug: (message) => updateLog(`DEBUG ${message}`),
+  };
 
   autoUpdater.on("update-available", async (info) => {
     if (!mainWindow || updatePromptOpen) return;
@@ -151,6 +222,7 @@ function setupAutoUpdater() {
     updatePromptOpen = false;
 
     if (result.response === 0) {
+      updateLog(`download-start ${versionLabel(info)}`);
       mainWindow.setProgressBar(2);
       autoUpdater.downloadUpdate().catch(() => {
         mainWindow?.setProgressBar(-1);
@@ -165,6 +237,7 @@ function setupAutoUpdater() {
   });
 
   autoUpdater.on("update-downloaded", async (info) => {
+    updateLog(`update-downloaded ${versionLabel(info)}`);
     mainWindow?.setProgressBar(-1);
     if (!mainWindow || updatePromptOpen) return;
     updatePromptOpen = true;
@@ -180,14 +253,43 @@ function setupAutoUpdater() {
     updatePromptOpen = false;
 
     if (result.response === 0) {
-      app.isQuiting = true;
-      autoUpdater.quitAndInstall(false, true);
+      await installDownloadedUpdate();
     }
   });
 
-  autoUpdater.on("error", () => {
+  autoUpdater.on("error", (error) => {
+    updateLog("updater-error", error);
     mainWindow?.setProgressBar(-1);
+    if (installingUpdate) {
+      installingUpdate = false;
+      dialog.showErrorBox("自动更新安装失败", "更新包已下载，但系统安装器没有成功接管。请到 GitHub Releases 手动下载安装包，或重新打开软件后再试。");
+    }
   });
+}
+
+async function installDownloadedUpdate() {
+  if (installingUpdate) return;
+  installingUpdate = true;
+  app.isQuiting = true;
+  updateLog("install-confirmed");
+
+  try {
+    mainWindow?.setProgressBar(-1);
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.removeAllListeners("close");
+      mainWindow.close();
+    }
+    await stopBackend(2500);
+    updateLog("backend-stopped-before-install");
+    setTimeout(() => {
+      updateLog("quit-and-install");
+      autoUpdater.quitAndInstall(false, true);
+    }, 250);
+  } catch (error) {
+    installingUpdate = false;
+    updateLog("install-start-failed", error);
+    dialog.showErrorBox("自动更新安装失败", error.message || "无法启动更新安装器，请手动下载安装包。");
+  }
 }
 
 async function checkForUpdates() {
@@ -229,9 +331,7 @@ if (!locked) {
 
   app.on("before-quit", () => {
     app.isQuiting = true;
-    if (backendProcess && !backendProcess.killed) {
-      backendProcess.kill();
-    }
+    stopBackend();
   });
 
   app.on("window-all-closed", () => {
