@@ -351,6 +351,103 @@ function versionLabel(info) {
   return info?.version ? `v${info.version}` : "新版本";
 }
 
+function updaterCacheDir() {
+  return path.join(app.getPath("cache"), "trading-discipline-workbench-updater");
+}
+
+function currentAppBundlePath() {
+  if (process.platform !== "darwin") return "";
+  const marker = ".app/Contents/MacOS/";
+  const index = process.execPath.indexOf(marker);
+  if (index < 0) return "";
+  return `${process.execPath.slice(0, index)}.app`;
+}
+
+function newestFile(paths) {
+  return paths
+    .filter((filePath) => {
+      try {
+        return fs.existsSync(filePath) && fs.statSync(filePath).isFile();
+      } catch {
+        return false;
+      }
+    })
+    .sort((left, right) => fs.statSync(right).mtimeMs - fs.statSync(left).mtimeMs)[0];
+}
+
+function pendingMacZipPath(version = "") {
+  const pendingDir = path.join(updaterCacheDir(), "pending");
+  const candidates = [];
+  try {
+    const files = fs.readdirSync(pendingDir);
+    const zipFiles = files
+      .filter((file) => file.endsWith(".zip"))
+      .filter((file) => !version || file.includes(version));
+    candidates.push(...zipFiles.map((file) => path.join(pendingDir, file)));
+  } catch {
+    // pending 目录可能还没有创建。
+  }
+  candidates.push(path.join(updaterCacheDir(), "update.zip"));
+  return newestFile(candidates);
+}
+
+function shellQuote(value) {
+  return `'${String(value).replace(/'/g, "'\\''")}'`;
+}
+
+function createMacInstallScript(zipPath) {
+  const appBundle = currentAppBundlePath();
+  if (!appBundle) {
+    throw new Error("无法定位当前 Mac 应用包路径。");
+  }
+
+  const helperDir = path.join(app.getPath("temp"), `trading-workbench-update-${Date.now()}`);
+  const scriptPath = path.join(helperDir, "install-mac-update.sh");
+  const stageDir = path.join(helperDir, "stage");
+  const logPath = path.join(app.getPath("userData"), "mac-install.log");
+  fs.mkdirSync(helperDir, { recursive: true });
+
+  const content = `#!/bin/bash
+set -euo pipefail
+LOG=${shellQuote(logPath)}
+exec >> "$LOG" 2>&1
+echo "[$(/bin/date -u +"%Y-%m-%dT%H:%M:%SZ")] custom mac installer started"
+ZIP=${shellQuote(zipPath)}
+TARGET=${shellQuote(appBundle)}
+STAGE=${shellQuote(stageDir)}
+APP_PID=${process.pid}
+
+/bin/rm -rf "$STAGE"
+/bin/mkdir -p "$STAGE"
+/usr/bin/ditto -x -k "$ZIP" "$STAGE"
+NEW_APP="$(/usr/bin/find "$STAGE" -maxdepth 3 -name '*.app' -type d | /usr/bin/head -n 1)"
+if [[ -z "$NEW_APP" ]]; then
+  echo "no .app found in update zip"
+  exit 2
+fi
+
+for i in {1..80}; do
+  if /bin/kill -0 "$APP_PID" 2>/dev/null; then
+    /bin/sleep 0.25
+  else
+    break
+  fi
+done
+
+/usr/bin/pkill -f "${path.basename(appBundle)}/Contents/Resources/backend/trading-workbench-server" || true
+/bin/sleep 0.4
+/bin/rm -rf "$TARGET"
+/usr/bin/ditto "$NEW_APP" "$TARGET"
+/usr/bin/xattr -cr "$TARGET" || true
+/bin/rm -rf ${shellQuote(path.join(updaterCacheDir(), "pending"))} ${shellQuote(path.join(updaterCacheDir(), "update.zip"))} || true
+echo "[$(/bin/date -u +"%Y-%m-%dT%H:%M:%SZ")] custom mac installer finished"
+/usr/bin/open "$TARGET"
+`;
+  fs.writeFileSync(scriptPath, content, "utf8");
+  fs.chmodSync(scriptPath, 0o755);
+  return scriptPath;
+}
+
 function sendUpdateStatus(status) {
   latestUpdateStatus = {
     time: new Date().toISOString(),
@@ -490,6 +587,18 @@ function setupAutoUpdater() {
   autoUpdater.on("error", (error) => {
     updateLog("updater-error", error);
     mainWindow?.setProgressBar(-1);
+    const pendingZip = process.platform === "darwin" ? pendingMacZipPath(latestUpdateStatus?.version || "") : "";
+    if (pendingZip && /Code signature|Squirrel|validation/i.test(error?.message || "")) {
+      updateLog(`mac-native-validation-ignored ${pendingZip}`);
+      sendUpdateStatus({
+        phase: "downloaded",
+        title: "更新已下载",
+        message: "Mac 原生签名校验未接管，稍后将使用内置安装助手安装。",
+        version: latestUpdateStatus?.version || "",
+        percent: 100,
+      });
+      return;
+    }
     sendUpdateStatus({
       phase: "error",
       title: "更新失败",
@@ -510,6 +619,11 @@ function setupAutoUpdater() {
 
 async function installDownloadedUpdate() {
   if (installingUpdate) return;
+  if (process.platform === "darwin") {
+    await installDownloadedMacUpdate();
+    return;
+  }
+
   installingUpdate = true;
   app.isQuiting = true;
   updateLog("install-confirmed");
@@ -530,6 +644,41 @@ async function installDownloadedUpdate() {
     installingUpdate = false;
     updateLog("install-start-failed", error);
     await showDiagnosticDialog("自动更新安装失败", error.message || "无法启动更新安装器，请手动下载安装包。", error, "自动更新启动失败");
+  }
+}
+
+async function installDownloadedMacUpdate() {
+  if (installingUpdate) return;
+  installingUpdate = true;
+  app.isQuiting = true;
+  updateLog("mac-custom-install-confirmed");
+
+  try {
+    const version = latestUpdateStatus?.version || "";
+    const zipPath = pendingMacZipPath(version);
+    if (!zipPath) {
+      throw new Error("没有找到已下载的 Mac 更新包，请重新下载更新。");
+    }
+    const scriptPath = createMacInstallScript(zipPath);
+    updateLog(`mac-custom-installer-created ${scriptPath}`);
+    sendUpdateStatus({
+      phase: "installing",
+      title: "正在安装更新",
+      message: "软件会退出，安装完成后自动重新打开。",
+      percent: 100,
+    });
+    const child = spawn("/bin/bash", [scriptPath], {
+      detached: true,
+      stdio: "ignore",
+    });
+    child.unref();
+    await stopBackend(2500);
+    app.exit(0);
+  } catch (error) {
+    installingUpdate = false;
+    app.isQuiting = false;
+    updateLog("mac-custom-install-start-failed", error);
+    await showDiagnosticDialog("自动更新安装失败", error.message || "无法启动 Mac 安装助手，请手动下载安装包。", error, "Mac自动更新安装失败");
   }
 }
 
