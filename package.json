@@ -1,6 +1,6 @@
 {
   "name": "trading-discipline-workbench",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "个人股票交易纪律、复盘和行为纠偏工作台",
   "main": "desktop/main.cjs",
   "scripts": {
@@ -10,6 +10,8 @@
     "build:backend": "python -m PyInstaller --clean --noconfirm --onefile --name trading-workbench-server --distpath dist-backend --workpath build-backend server.py",
     "dist:mac": "npm run check && npm run build:backend && electron-builder --mac dmg zip --publish never",
     "dist:win": "npm run check && npm run build:backend && electron-builder --win nsis zip --publish never",
+    "release:mac": "npm run check && npm run build:backend && electron-builder --mac dmg zip --publish always",
+    "release:win": "npm run check && npm run build:backend && electron-builder --win nsis zip --publish always",
     "dist": "npm run check && npm run build:backend && electron-builder --publish never"
   },
   "keywords": [
@@ -50,6 +52,14 @@
     "directories": {
       "output": "release"
     },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "gacstreetwear-coder",
+        "repo": "trading-discipline-workbench",
+        "releaseType": "release"
+      }
+    ],
     "mac": {
       "category": "public.app-category.finance",
       "target": [
@@ -78,5 +88,8 @@
   "devDependencies": {
     "electron": "^43.0.0",
     "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
   }
 }
