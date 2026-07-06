@@ -4,10 +4,14 @@ const fs = require("fs");
 const http = require("http");
 const net = require("net");
 const path = require("path");
+const { autoUpdater } = require("electron-updater");
 
 let mainWindow = null;
 let backendProcess = null;
 let backendPort = null;
+const BACKEND_PORT = 5199;
+let updatePromptOpen = false;
+let updateCheckInFlight = false;
 
 function projectRoot() {
   return path.resolve(__dirname, "..");
@@ -17,13 +21,14 @@ function resourcePath(...parts) {
   return app.isPackaged ? path.join(process.resourcesPath, ...parts) : path.join(projectRoot(), ...parts);
 }
 
-function freePort() {
+function assertPortAvailable(port) {
   return new Promise((resolve, reject) => {
     const server = net.createServer();
-    server.on("error", reject);
-    server.listen(0, "127.0.0.1", () => {
-      const { port } = server.address();
-      server.close(() => resolve(port));
+    server.on("error", () => {
+      reject(new Error(`本地端口 ${port} 被占用，请关闭已经运行的交易纪律工作台后再打开。`));
+    });
+    server.listen(port, "127.0.0.1", () => {
+      server.close(resolve);
     });
   });
 }
@@ -76,7 +81,8 @@ function waitForHealth(port, timeoutMs = 20000) {
 }
 
 async function startBackend() {
-  backendPort = await freePort();
+  backendPort = BACKEND_PORT;
+  await assertPortAvailable(backendPort);
   const webRoot = resourcePath("web");
   const { command, args, cwd } = backendCommand();
   backendProcess = spawn(command, args, {
@@ -121,10 +127,88 @@ function createWindow() {
   });
 }
 
+function versionLabel(info) {
+  return info?.version ? `v${info.version}` : "新版本";
+}
+
+function setupAutoUpdater() {
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = false;
+  autoUpdater.allowPrerelease = false;
+
+  autoUpdater.on("update-available", async (info) => {
+    if (!mainWindow || updatePromptOpen) return;
+    updatePromptOpen = true;
+    const result = await dialog.showMessageBox(mainWindow, {
+      type: "info",
+      buttons: ["立即下载", "稍后"],
+      defaultId: 0,
+      cancelId: 1,
+      title: "发现新版本",
+      message: `发现 ${versionLabel(info)}`,
+      detail: "建议先在「数据管理」里导出备份。确认后软件会在后台下载更新包，下载完成后再提示你重启安装。",
+    });
+    updatePromptOpen = false;
+
+    if (result.response === 0) {
+      mainWindow.setProgressBar(2);
+      autoUpdater.downloadUpdate().catch(() => {
+        mainWindow?.setProgressBar(-1);
+        dialog.showErrorBox("更新下载失败", "请稍后重试，或到 GitHub Releases 手动下载安装包。");
+      });
+    }
+  });
+
+  autoUpdater.on("download-progress", (progress) => {
+    const percent = Number(progress?.percent || 0);
+    mainWindow?.setProgressBar(Math.min(Math.max(percent / 100, 0), 1));
+  });
+
+  autoUpdater.on("update-downloaded", async (info) => {
+    mainWindow?.setProgressBar(-1);
+    if (!mainWindow || updatePromptOpen) return;
+    updatePromptOpen = true;
+    const result = await dialog.showMessageBox(mainWindow, {
+      type: "info",
+      buttons: ["重启并安装", "稍后"],
+      defaultId: 0,
+      cancelId: 1,
+      title: "更新已下载",
+      message: `${versionLabel(info)} 已下载完成`,
+      detail: "点击「重启并安装」后，软件会关闭并安装新版本。你的交易数据会保留在本机。",
+    });
+    updatePromptOpen = false;
+
+    if (result.response === 0) {
+      app.isQuiting = true;
+      autoUpdater.quitAndInstall(false, true);
+    }
+  });
+
+  autoUpdater.on("error", () => {
+    mainWindow?.setProgressBar(-1);
+  });
+}
+
+async function checkForUpdates() {
+  if (!app.isPackaged || updateCheckInFlight) return;
+  updateCheckInFlight = true;
+  try {
+    await autoUpdater.checkForUpdates();
+  } catch {
+    // 自动更新失败不能影响软件正常使用。
+  } finally {
+    updateCheckInFlight = false;
+  }
+}
+
 async function boot() {
   try {
     await startBackend();
+    setupAutoUpdater();
     createWindow();
+    setTimeout(checkForUpdates, 6000);
+    setInterval(checkForUpdates, 6 * 60 * 60 * 1000);
   } catch (error) {
     dialog.showErrorBox("交易纪律工作台启动失败", error.message || "本地服务无法启动。");
     app.quit();
