@@ -1,0 +1,946 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>交易纪律工作台</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">纪</div>
+          <div>
+            <h1>交易纪律工作台</h1>
+            <p>计划、执行、复盘</p>
+          </div>
+        </div>
+
+        <nav class="nav" aria-label="主导航">
+          <button class="nav-item active" data-view="dashboard" title="今日工作台">
+            <span class="nav-icon" aria-hidden="true">⌂</span>
+            <span>工作台</span>
+          </button>
+          <button class="nav-item" data-view="plans" title="交易计划">
+            <span class="nav-icon" aria-hidden="true">☷</span>
+            <span>交易计划</span>
+          </button>
+          <button class="nav-item" data-view="positions" title="持仓管理">
+            <span class="nav-icon" aria-hidden="true">▦</span>
+            <span>持仓管理</span>
+          </button>
+          <button class="nav-item" data-view="trade" title="新建开仓">
+            <span class="nav-icon" aria-hidden="true">＋</span>
+            <span>新建开仓</span>
+          </button>
+          <button class="nav-item" data-view="journal" title="复盘日志">
+            <span class="nav-icon" aria-hidden="true">✎</span>
+            <span>复盘日志</span>
+          </button>
+          <button class="nav-item" data-view="calendar" title="事件日历">
+            <span class="nav-icon" aria-hidden="true">◴</span>
+            <span>事件日历</span>
+          </button>
+          <button class="nav-item" data-view="stats" title="交易行为看板">
+            <span class="nav-icon" aria-hidden="true">↗</span>
+            <span>行为看板</span>
+          </button>
+          <button class="nav-item" data-view="data" title="数据管理">
+            <span class="nav-icon" aria-hidden="true">⤓</span>
+            <span>数据管理</span>
+          </button>
+        </nav>
+      </aside>
+
+      <main class="main">
+        <section id="dashboard" class="view active">
+          <div class="page-header">
+            <div>
+              <h2>今日工作台</h2>
+            </div>
+            <div id="todayDateLabel" class="date-badge"></div>
+          </div>
+
+          <section class="discipline-hero">
+            <div class="discipline-header">
+              <div>
+                <h3 id="disciplineTitle">交易纪律</h3>
+                <p id="disciplineCycleText" class="discipline-cycle-text"></p>
+              </div>
+              <button class="ghost-button" data-view-shortcut="plans">编辑</button>
+            </div>
+            <div id="disciplineCycleAlert" class="cycle-alert" hidden></div>
+            <div class="discipline-grid">
+              <article class="discipline-card" id="regimeCard">
+                <div class="metric-label">市场状态</div>
+                <div class="discipline-value" id="marketRegime">观察</div>
+                <p id="marketRegimeHint">决定今天是进攻、观察还是防守。</p>
+              </article>
+              <article class="discipline-card" id="capCard">
+                <div class="metric-label">仓位纪律</div>
+                <div class="discipline-value" id="marketCap">50%</div>
+                <p id="marketCapHint">所有开仓都不能突破这条线。</p>
+              </article>
+              <article class="discipline-card" id="permissionCard">
+                <div class="metric-label">开仓纪律</div>
+                <div class="discipline-value" id="marketPermission">谨慎</div>
+                <p id="marketPermissionHint">决定新仓是允许、谨慎还是暂停。</p>
+              </article>
+            </div>
+            <p id="marketNotes" class="discipline-notes"></p>
+          </section>
+
+          <div class="dashboard-grid">
+            <article class="metric-panel">
+              <div class="metric-label">总仓位</div>
+              <div class="metric-value" id="metricExposure">0%</div>
+              <div class="metric-foot" id="metricExposureHint">未超过计划上限</div>
+            </article>
+            <article class="metric-panel">
+              <div class="metric-label">浮动盈亏</div>
+              <div class="metric-value" id="metricPnl">¥0</div>
+              <div class="metric-foot" id="metricPnlHint">按当前价估算</div>
+            </article>
+            <article class="metric-panel">
+              <div class="metric-label">本周买/卖</div>
+              <div class="metric-value" id="metricTradeRatio">0 / 0</div>
+              <div class="metric-foot" id="metricTradeHint">卖出动作越充分越好</div>
+            </article>
+            <article class="metric-panel">
+              <div class="metric-label">未来事件</div>
+              <div class="metric-value" id="metricEvents">0</div>
+              <div class="metric-foot">未来 7 天</div>
+            </article>
+          </div>
+
+          <div class="dashboard-layout">
+            <section class="panel decision-panel">
+              <div class="panel-title-row">
+                <h3>今日执行清单</h3>
+                <button class="text-button" data-view-shortcut="plans" data-plan-focus="routine">编辑</button>
+              </div>
+              <div class="execution-list">
+                <article>
+                  <span class="mini-label">今日策略</span>
+                  <div id="dailyStrategyPreview" class="execution-preview"></div>
+                </article>
+                <article>
+                  <span class="mini-label">今日任务</span>
+                  <div id="dailyTasksPreview" class="execution-preview"></div>
+                </article>
+                <article class="danger-zone">
+                  <span class="mini-label">今日禁止</span>
+                  <div id="dailyAvoidPreview" class="execution-preview"></div>
+                </article>
+              </div>
+            </section>
+
+            <section class="panel alert-panel">
+              <div class="panel-title-row">
+                <h3>操作提醒</h3>
+                <span id="alertCount" class="count-badge">0</span>
+              </div>
+              <div id="alertsList" class="alert-list"></div>
+            </section>
+          </div>
+
+          <div class="panel">
+            <div class="panel-title-row">
+              <h3>持仓速览</h3>
+              <button class="text-button" data-view-shortcut="positions">查看全部</button>
+            </div>
+            <div id="positionCards" class="position-cards"></div>
+          </div>
+        </section>
+
+        <section id="positions" class="view">
+            <div class="page-header">
+              <div>
+              <h2>持仓管理</h2>
+              </div>
+            </div>
+
+          <div class="position-toolbar">
+            <div class="segmented" id="positionFilter">
+              <button class="active" data-position-filter="open">当前持仓</button>
+              <button data-position-filter="closed">历史持仓</button>
+              <button data-position-filter="all">全部记录</button>
+            </div>
+            <div class="market-refresh">
+              <span id="positionMarketStatus">行情自动刷新</span>
+              <button class="ghost-button" id="refreshQuotesBtn" title="刷新行情">刷新</button>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>标的</th>
+                    <th>成本/现价</th>
+                    <th>数量</th>
+                    <th>仓位</th>
+                    <th>浮盈</th>
+                    <th>计划</th>
+                    <th>动作</th>
+                  </tr>
+                </thead>
+                <tbody id="positionsTable"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <section class="panel position-chart-panel">
+            <div class="panel-title-row">
+              <h3 id="chartTitle">技术图表</h3>
+              <button class="ghost-button" id="refreshChartBtn">刷新K线</button>
+            </div>
+            <div class="chart-toolbar">
+              <label>
+                K线标的
+                <select id="chartSymbolSelect"></select>
+              </label>
+              <div class="segmented" id="chartPeriodControl" aria-label="K线周期">
+                <button class="active" data-chart-period="day">日线</button>
+                <button data-chart-period="week">周线</button>
+                <button data-chart-period="month">月线</button>
+              </div>
+              <div class="chart-zoom-controls">
+                <button class="ghost-button" data-chart-zoom="in">放大</button>
+                <button class="ghost-button" data-chart-zoom="out">缩小</button>
+                <span id="chartZoomLabel" class="soft-text">80 根K线</span>
+              </div>
+            </div>
+            <div class="indicator-settings">
+              <div class="indicator-setting-block">
+                <label>
+                  主图指标
+                  <select id="mainIndicatorSelect"></select>
+                </label>
+              </div>
+              <div class="indicator-setting-block">
+                <label>
+                  添加副图
+                  <select id="subIndicatorSelect"></select>
+                </label>
+              </div>
+            </div>
+            <div class="chart-shell" tabindex="0" aria-label="K线图，方向键上放大，下缩小">
+              <div class="chart-indicator-badge">
+                <span id="mainIndicatorName">MA</span>
+                <button id="mainIndicatorSettingsBtn" type="button" title="设置主图指标参数">⚙</button>
+              </div>
+              <svg id="marketChart" role="img" aria-label="持仓技术图表"></svg>
+            </div>
+            <div id="subChartPanels" class="sub-chart-panels"></div>
+          </section>
+        </section>
+
+        <section id="trade" class="view">
+          <div class="page-header">
+            <div>
+              <h2>新建开仓</h2>
+            </div>
+            <div id="entryCompleteness" class="completion-pill">待填写</div>
+          </div>
+
+          <section id="entryGuardPanel" class="entry-guard-panel" hidden>
+            <div class="entry-guard-head">
+              <div>
+                <h3 id="entryGuardTitle">开仓纪律检查</h3>
+                <p id="entryGuardSummary"></p>
+              </div>
+              <span id="entryGuardBadge" class="count-badge">纪律</span>
+            </div>
+            <div id="entryGuardList" class="entry-guard-list"></div>
+          </section>
+
+          <form id="tradeForm" class="form-grid">
+            <section class="panel form-section">
+              <h3>基础信息</h3>
+              <div class="fields two">
+                <label>
+                  股票代码
+                  <input name="symbol" placeholder="例如 600519" required />
+                </label>
+                <label>
+                  股票名称
+                  <input name="name" placeholder="例如 贵州茅台" required />
+                </label>
+                <label>
+                  开仓日期
+                  <input name="openedAt" type="date" required />
+                </label>
+                <label>
+                  买入价格
+                  <input name="entryPrice" type="number" min="0" step="0.01" required />
+                </label>
+                <label>
+                  买入数量
+                  <input name="shares" type="number" min="1" step="1" required />
+                </label>
+                <label>
+                  仓位比例
+                  <input name="positionPct" type="number" min="0" max="100" step="0.1" required />
+                </label>
+              </div>
+              <div class="fields two">
+                <label>
+                  买入形态
+                  <select name="setup">
+                    <option>突破</option>
+                    <option>回踩</option>
+                    <option>均线支撑</option>
+                    <option>趋势延续</option>
+                    <option>事件催化</option>
+                    <option>低吸试错</option>
+                  </select>
+                </label>
+                <label>
+                  风险等级
+                  <select name="riskLevel">
+                    <option>低</option>
+                    <option>中</option>
+                    <option>高</option>
+                  </select>
+                </label>
+              </div>
+            </section>
+
+            <section class="panel form-section">
+              <h3>技术检查</h3>
+              <div class="fields">
+                <label>
+                  买入逻辑
+                  <textarea name="thesis" rows="3" placeholder="为什么现在值得开仓？"></textarea>
+                </label>
+                <label>
+                  K线形态
+                  <input name="kline" placeholder="例如 放量突破箱体" />
+                </label>
+                <label>
+                  月线状态
+                  <input name="monthlyTrend" placeholder="例如 月线多头、月线顶背离、月线放量突破" />
+                </label>
+                <label>
+                  周线状态
+                  <input name="weeklyTrend" placeholder="例如 周线平台突破、周线MACD红柱放大" />
+                </label>
+                <label>
+                  日线状态
+                  <input name="dailyTrend" placeholder="例如 日线回踩20日线、放量长阳" />
+                </label>
+                <label>
+                  均线形态
+                  <input name="ma" placeholder="例如 20 日线上方，5/10 日多头" />
+                </label>
+                <label>
+                  MACD
+                  <input name="macd" placeholder="例如 0轴上金叉，红柱放大" />
+                </label>
+                <label>
+                  KDJ
+                  <input name="kdj" placeholder="例如 金叉后未进入极端高位" />
+                </label>
+                <label>
+                  量能
+                  <input name="volume" placeholder="例如 放量但未过热" />
+                </label>
+                <label>
+                  板块 / 大盘共振
+                  <input name="marketAlignment" placeholder="例如 板块强于指数，指数处于进攻窗口" />
+                </label>
+                <label>
+                  支撑 / 压力
+                  <input name="supportResistance" placeholder="例如 支撑 36.2，压力 39.8 / 42.5" />
+                </label>
+              </div>
+            </section>
+
+            <section class="panel form-section">
+              <h3>止盈止损</h3>
+              <div class="fields two">
+                <label>
+                  止损价
+                  <input name="stopLoss" type="number" min="0" step="0.01" required />
+                </label>
+                <label>
+                  第一止盈价
+                  <input name="target1" type="number" min="0" step="0.01" required />
+                </label>
+                <label>
+                  第一减仓比例
+                  <input name="target1Pct" type="number" min="0" max="100" step="1" value="25" />
+                </label>
+                <label>
+                  第二止盈价
+                  <input name="target2" type="number" min="0" step="0.01" />
+                </label>
+                <label>
+                  第二减仓比例
+                  <input name="target2Pct" type="number" min="0" max="100" step="1" value="25" />
+                </label>
+                <label>
+                  当前价
+                  <input name="currentPrice" type="number" min="0" step="0.01" />
+                </label>
+              </div>
+              <div class="fields">
+                <label>
+                  趋势持有条件
+                  <input name="trendHold" placeholder="例如 20 日线不破、周线趋势不坏" />
+                </label>
+                <label>
+                  清仓条件
+                  <input name="exitSignal" placeholder="例如 周线顶背离、跌破平台、放量长阴" />
+                </label>
+              </div>
+            </section>
+
+            <section class="panel form-section">
+              <h3>纪律检查</h3>
+              <div class="checklist">
+                <label><input type="checkbox" name="checkMarket" /> 当前市场状态允许这类交易</label>
+                <label><input type="checkbox" name="checkWatchlist" /> 标的来自计划或观察名单</label>
+                <label><input type="checkbox" name="checkPlan" /> 已写清楚买入依据</label>
+                <label><input type="checkbox" name="checkStop" /> 已设置止损价</label>
+                <label><input type="checkbox" name="checkTargets" /> 已设置分批止盈</label>
+                <label><input type="checkbox" name="checkRiskReward" /> 预期收益风险比达标</label>
+                <label><input type="checkbox" name="checkPosition" /> 仓位没有超过计划上限</label>
+                <label><input type="checkbox" name="checkLiquidity" /> 流动性和成交量足够</label>
+                <label><input type="checkbox" name="checkEventRisk" /> 未来 48 小时没有不可承受事件风险</label>
+                <label><input type="checkbox" name="checkEmotion" /> 不是为了追涨或扳回亏损</label>
+              </div>
+              <label>
+                开仓备注
+                <textarea name="entryNote" rows="4" placeholder="当时的市场环境、心态、盘面细节"></textarea>
+              </label>
+              <div class="form-actions">
+                <button type="reset" class="ghost-button">清空</button>
+                <button type="submit" class="primary-button">保存开仓</button>
+              </div>
+            </section>
+          </form>
+        </section>
+
+        <section id="journal" class="view">
+          <div class="page-header">
+            <div>
+              <h2>复盘日志</h2>
+            </div>
+          </div>
+
+          <div class="split-layout">
+            <form id="journalForm" class="panel form-section">
+              <h3>新增日志</h3>
+              <div class="fields two">
+                <label>
+                  日期
+                  <input name="date" type="date" required />
+                </label>
+                <label>
+                  类型
+                  <select name="type">
+                    <option>开仓日志</option>
+                    <option>持仓观察</option>
+                    <option>减仓复盘</option>
+                    <option>止损复盘</option>
+                    <option>计划偏离</option>
+                    <option>情绪记录</option>
+                    <option>日复盘</option>
+                    <option>周复盘</option>
+                  </select>
+                </label>
+              </div>
+              <label>
+                关联标的
+                <select name="positionId" id="journalPositionSelect"></select>
+              </label>
+              <label>
+                标题
+                <input name="title" required />
+              </label>
+              <label>
+                内容
+                <textarea name="content" rows="6" required></textarea>
+              </label>
+              <div class="fields two">
+                <label>
+                  心态
+                  <select name="mood">
+                    <option>冷静</option>
+                    <option>犹豫</option>
+                    <option>贪婪</option>
+                    <option>恐惧</option>
+                    <option>复仇交易</option>
+                  </select>
+                </label>
+                <label>
+                  纪律分
+                  <input name="disciplineScore" type="number" min="1" max="10" value="8" />
+                </label>
+              </div>
+              <div class="form-actions">
+                <button type="submit" class="primary-button">保存日志</button>
+              </div>
+            </form>
+
+            <section class="panel">
+              <div class="panel-title-row">
+                <h3>日志列表</h3>
+                <span id="journalCount" class="count-badge">0</span>
+              </div>
+              <div id="journalList" class="note-list"></div>
+            </section>
+          </div>
+        </section>
+
+        <section id="plans" class="view">
+          <div class="page-header">
+            <div>
+              <h2>交易计划</h2>
+            </div>
+          </div>
+
+          <div class="plan-stack">
+            <form id="marketPlanForm" class="panel form-section">
+              <h3>纪律总控</h3>
+              <div class="fields two">
+                <label>
+                  周期开始
+                  <input name="cycleStart" type="date" />
+                </label>
+                <label>
+                  截止方式
+                  <select name="cycleEndMode" id="cycleEndModeSelect">
+                    <option value="fixed">固定截止日期</option>
+                    <option value="open">待定</option>
+                  </select>
+                </label>
+                <label>
+                  周期截止
+                  <input name="cycleEndDate" id="cycleEndDateInput" type="date" />
+                </label>
+                <label>
+                  本周期关注点
+                  <input name="cycleNote" placeholder="例如：等待非农发布后再更新纪律" />
+                </label>
+                <label>
+                  市场状态
+                  <select name="regime">
+                    <option>进攻</option>
+                    <option>观察</option>
+                    <option>震荡</option>
+                    <option>防守</option>
+                  </select>
+                </label>
+                <label>
+                  账户总资金
+                  <input name="accountEquity" type="number" min="0" step="1000" />
+                </label>
+                <label>
+                  仓位上限
+                  <input name="positionCap" type="number" min="0" max="100" step="1" />
+                </label>
+                <label>
+                  开仓纪律
+                  <select name="allowNew">
+                    <option value="true">允许</option>
+                    <option value="cautious">谨慎</option>
+                    <option value="false">暂停</option>
+                  </select>
+                </label>
+                <label>
+                  本周开仓上限
+                  <input name="weeklyBuyLimit" type="number" min="0" max="20" step="1" />
+                </label>
+              </div>
+              <label>
+                市场判断
+                <textarea name="notes" rows="4"></textarea>
+              </label>
+              <button type="submit" class="primary-button">保存</button>
+            </form>
+
+            <form id="routinePlanForm" class="plan-form">
+              <section class="panel form-section plan-builder">
+                <div>
+                  <h3>周计划</h3>
+                  <p class="soft-text">把本周的方向和禁止事项拆成清单，避免所有判断混在一个大文本框里。</p>
+                </div>
+                <div class="plan-list-block" data-plan-field="weeklyFocusItems"></div>
+                <div class="plan-list-block danger" data-plan-field="weeklyAvoidItems"></div>
+              </section>
+
+              <section class="panel form-section plan-builder">
+                <div class="plan-section-head">
+                  <div>
+                    <h3>日计划</h3>
+                    <p class="soft-text">每天盘前或晚上更新，工作台会直接读取这里的今日策略、今日任务和今日禁止。</p>
+                  </div>
+                  <button type="button" class="ghost-button" id="generateDailyPlanBtn">生成今日执行草案</button>
+                </div>
+                <div class="plan-list-block" data-plan-field="dailyStrategyItems"></div>
+                <div class="plan-list-block" data-plan-field="dailyTaskItems"></div>
+                <div class="plan-list-block danger" data-plan-field="dailyAvoidItems"></div>
+                <button type="submit" class="primary-button">保存</button>
+              </section>
+            </form>
+          </div>
+        </section>
+
+        <section id="calendar" class="view">
+          <div class="page-header">
+            <div>
+              <h2>事件日历</h2>
+            </div>
+          </div>
+
+          <section class="panel calendar-board">
+            <div class="panel-title-row">
+              <h3 id="calendarTitle">事件日历</h3>
+              <div class="header-actions">
+                <button class="ghost-button" id="syncEventsBtn">在线更新</button>
+                <button class="ghost-button" id="calendarPrevBtn">上一月</button>
+                <button class="ghost-button" id="calendarTodayBtn">今天</button>
+                <button class="ghost-button" id="calendarNextBtn">下一月</button>
+              </div>
+            </div>
+
+            <div class="calendar-controls">
+              <label>
+                年份
+                <select id="calendarYearSelect"></select>
+              </label>
+              <label>
+                月份
+                <select id="calendarMonthSelect"></select>
+              </label>
+              <label>
+                类型
+                <select id="eventCategoryFilter">
+                  <option value="all">全部事件</option>
+                  <option value="宏观经济数据">宏观经济数据</option>
+                  <option value="重大会议">重大会议</option>
+                  <option value="重点公司事件">重点公司事件</option>
+                </select>
+              </label>
+              <label>
+                关联范围
+                <select id="eventMarketFilter"></select>
+              </label>
+              <div class="segmented calendar-mode">
+                <button class="active" data-calendar-mode="month">月历</button>
+                <button data-calendar-mode="year">年历</button>
+              </div>
+            </div>
+
+            <div class="calendar-layout">
+              <div class="calendar-main">
+                <div class="weekday-row">
+                  <span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span>
+                </div>
+                <div id="calendarGrid" class="calendar-grid"></div>
+                <div id="yearGrid" class="year-grid"></div>
+              </div>
+
+              <aside class="event-detail-panel">
+                <div class="panel-title-row">
+                  <h3>事件详情</h3>
+                  <span id="eventDetailBadge" class="count-badge">未选择</span>
+                </div>
+                <div id="eventDetail" class="event-detail"></div>
+              </aside>
+            </div>
+          </section>
+
+          <form id="eventForm" class="panel form-section event-editor">
+            <h3>新增自定义事件</h3>
+            <div class="fields two">
+                <label>
+                  日期
+                  <input name="date" type="date" required />
+                </label>
+                <label>
+                  类型
+                  <select name="category">
+                    <option>宏观经济数据</option>
+                    <option>重大会议</option>
+                    <option>重点公司事件</option>
+                  </select>
+                </label>
+              </div>
+              <label>
+                关联范围
+                <select name="market"></select>
+              </label>
+              <label>
+                事件
+                <input name="title" required />
+              </label>
+              <label>
+                影响
+                <select name="impact">
+                  <option>高</option>
+                  <option>中</option>
+                  <option>低</option>
+                </select>
+              </label>
+              <label>
+                备注
+                <textarea name="note" rows="4"></textarea>
+              </label>
+              <button type="submit" class="primary-button">保存事件</button>
+          </form>
+        </section>
+
+        <section id="stats" class="view">
+          <div class="page-header">
+            <div>
+              <h2>交易行为看板</h2>
+            </div>
+          </div>
+
+          <section class="panel stats-period-panel">
+            <div class="period-control" aria-label="复盘周期">
+              <span class="period-title">周期</span>
+              <div class="period-range">
+                <input id="statsStartInput" type="date" aria-label="开始日期" />
+                <span>至</span>
+                <input id="statsEndInput" type="date" aria-label="结束日期" />
+              </div>
+              <button id="statsAllPeriodBtn" class="period-all-button active" type="button">开户以来</button>
+            </div>
+          </section>
+
+          <div class="stats-grid executive-grid">
+            <article class="panel stat-card">
+              <div class="metric-label">总盈亏</div>
+              <div class="metric-value" id="statTotalPnl">¥0</div>
+            </article>
+            <article class="panel stat-card">
+              <div class="metric-label">胜率</div>
+              <div class="metric-value" id="statWinRate">0%</div>
+            </article>
+            <article class="panel stat-card">
+              <div class="metric-label">盈亏比</div>
+              <div class="metric-value" id="statProfitFactor">--</div>
+            </article>
+            <article class="panel stat-card">
+              <div class="metric-label">最大回撤</div>
+              <div class="metric-value" id="statMaxDrawdown">0%</div>
+            </article>
+            <article class="panel stat-card">
+              <div class="metric-label">纪律偏离</div>
+              <div class="metric-value" id="statViolationRate">0%</div>
+            </article>
+            <article class="panel stat-card">
+              <div class="metric-label">止盈执行率</div>
+              <div class="metric-value" id="statTargetRate">0%</div>
+            </article>
+          </div>
+
+          <div class="insight-grid">
+            <article class="panel behavior-summary-panel">
+              <div class="panel-title-row">
+                <h3>本期行为结论</h3>
+                <span class="count-badge" id="behaviorSummaryBadge">待观察</span>
+              </div>
+              <div id="behaviorSummary" class="behavior-summary"></div>
+            </article>
+            <article class="panel behavior-summary-panel">
+              <div class="panel-title-row">
+                <h3>下一步纠偏</h3>
+                <span class="count-badge">行动清单</span>
+              </div>
+              <div id="correctionReport" class="correction-report"></div>
+            </article>
+          </div>
+
+          <div class="analytics-grid">
+            <section class="panel analytics-wide">
+              <div class="panel-title-row">
+                <h3>账户盈亏曲线</h3>
+                <span class="count-badge">已实现 + 浮动</span>
+              </div>
+              <div class="analytics-chart"><svg id="equityCurveChart" role="img" aria-label="账户盈亏曲线"></svg></div>
+            </section>
+            <section class="panel analytics-wide">
+              <div class="panel-title-row">
+                <h3>纪律环境表现</h3>
+                <span class="count-badge" id="disciplineMatrixBadge">0 笔开仓</span>
+              </div>
+              <div id="disciplineMatrix" class="discipline-matrix"></div>
+            </section>
+            <section class="panel">
+              <h3>违规开仓追踪</h3>
+              <div id="violationTracker" class="setup-list"></div>
+            </section>
+            <section class="panel">
+              <h3>行为偏差信号</h3>
+              <div id="biasSignals" class="setup-list"></div>
+            </section>
+            <section class="panel">
+              <h3>资金与风险</h3>
+              <div id="capitalStats" class="bar-list"></div>
+            </section>
+            <section class="panel">
+              <h3>执行与纪律</h3>
+              <div id="executionStats" class="bar-list"></div>
+            </section>
+            <section class="panel">
+              <h3>策略表现</h3>
+              <div id="setupStats" class="setup-list"></div>
+            </section>
+            <section class="panel">
+              <h3>当前风险项</h3>
+              <div id="riskRadar" class="setup-list"></div>
+            </section>
+          </div>
+        </section>
+
+        <section id="data" class="view">
+          <div class="page-header">
+            <div>
+              <h2>数据管理</h2>
+            </div>
+          </div>
+
+          <div class="split-layout">
+            <section class="panel form-section">
+              <h3>本地数据</h3>
+              <p class="soft-text">当前版本使用浏览器本地存储，并提供备份、快照、扫描报告和券商 CSV 对账导入。</p>
+              <div class="data-actions">
+                <button id="exportDataBtn" class="primary-button">导出备份</button>
+                <label class="file-button">
+                  导入备份
+                  <input id="importDataInput" type="file" accept="application/json" />
+                </label>
+                <button id="createSnapshotBtn" class="ghost-button">创建本地快照</button>
+                <button id="generateScanReportBtn" class="ghost-button">生成扫描报告</button>
+                <button id="exportBehaviorReportBtn" class="ghost-button">导出复盘报告</button>
+                <label class="file-button">
+                  导入事件 CSV
+                  <input id="importEventCsvInput" type="file" accept=".csv,.txt" />
+                </label>
+                <label class="file-button">
+                  导入券商 CSV
+                  <input id="importBrokerCsvInput" type="file" accept=".csv,.txt" />
+                </label>
+                <button id="resetDataBtn" class="ghost-button danger">清空数据</button>
+              </div>
+              <div id="dataUtilityStatus" class="data-utility-status"></div>
+            </section>
+            <section class="panel form-section roadmap-panel">
+              <div class="panel-title-row">
+                <h3>数据工具</h3>
+                <span class="count-badge">第一版</span>
+              </div>
+              <div class="roadmap-group">
+                <div class="mini-label">可用能力</div>
+                <div class="roadmap-list">
+                  <article><strong>计划草案</strong><span>在交易计划里根据纪律、持仓和事件生成今日执行清单，减少从空白开始填写。</span></article>
+                  <article><strong>事件来源</strong><span>事件日历支持在线更新，也支持导入自定义 CSV，用于补充官方源没有覆盖的信息。</span></article>
+                  <article><strong>图表标记</strong><span>持仓 K 线会叠加买入、减仓、清仓标记，并继续保留止损止盈线。</span></article>
+                  <article><strong>行为报告</strong><span>交易行为看板可以导出复盘报告，重点追踪纪律环境、违规开仓和行为偏差。</span></article>
+                </div>
+              </div>
+              <div class="roadmap-group">
+                <div class="mini-label">本机维护</div>
+                <div class="roadmap-list">
+                  <article><strong>扫描报告</strong><span>一键刷新持仓行情、汇总操作提醒和近期事件，并写入复盘日志。</span></article>
+                  <article><strong>本地快照</strong><span>为当前数据创建本机快照，降低误删和导入失败的风险。</span></article>
+                  <article><strong>券商对账</strong><span>导入券商导出的 CSV，生成买卖数量、成交金额和系统匹配情况。</span></article>
+                  <article><strong>桌面准备</strong><span>当前已按本地软件方式运行；系统级定时提醒和券商直连需要后续接桌面壳或授权接口。</span></article>
+                </div>
+              </div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="sellDialog" class="modal">
+      <form method="dialog" id="sellForm" class="modal-card">
+        <div class="panel-title-row">
+          <h3>记录卖出 / 减仓</h3>
+          <button class="icon-button" value="cancel" title="关闭">×</button>
+        </div>
+        <input type="hidden" name="positionId" />
+        <div class="fields two">
+          <label>
+            日期
+            <input name="date" type="date" required />
+          </label>
+          <label>
+            卖出价格
+            <input name="price" type="number" min="0" step="0.01" required />
+          </label>
+          <label>
+            卖出数量
+            <input name="quantity" type="number" min="1" step="1" required />
+          </label>
+          <label>
+            动作
+            <select name="reason">
+              <option>第一止盈</option>
+              <option>第二止盈</option>
+              <option>止损</option>
+              <option>风险控制</option>
+              <option>趋势转弱</option>
+              <option>手动调整</option>
+            </select>
+          </label>
+        </div>
+        <label>
+          备注
+          <textarea name="notes" rows="3"></textarea>
+        </label>
+        <div class="form-actions">
+          <button value="cancel" class="ghost-button">取消</button>
+          <button id="confirmSellBtn" value="default" class="primary-button">保存</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="indicatorDialog" class="modal">
+      <form method="dialog" id="indicatorForm" class="modal-card">
+        <div class="panel-title-row">
+          <h3>添加指标公式</h3>
+          <button class="icon-button" value="cancel" title="关闭">×</button>
+        </div>
+        <input type="hidden" name="scope" />
+        <div class="fields two">
+          <label>
+            指标名称
+            <input name="name" placeholder="例如 我的趋势线" required />
+          </label>
+          <label>
+            显示位置
+            <select name="target">
+              <option value="main">主图指标</option>
+              <option value="sub">副图指标</option>
+            </select>
+          </label>
+        </div>
+        <label>
+          参数
+          <input name="params" placeholder="例如 N=25,M=60" />
+        </label>
+        <label>
+          通达信公式
+          <textarea name="formula" rows="8" placeholder="把通达信公式粘贴到这里"></textarea>
+        </label>
+        <div class="form-actions">
+          <button value="cancel" class="ghost-button">取消</button>
+          <button id="saveIndicatorBtn" value="default" class="primary-button">保存指标</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" aria-live="polite"></div>
+    <script src="./app.js"></script>
+  </body>
+</html>
