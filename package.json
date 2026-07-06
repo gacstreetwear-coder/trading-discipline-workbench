@@ -1,6 +1,6 @@
 {
   "name": "trading-discipline-workbench",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "个人股票交易纪律、复盘和行为纠偏工作台",
   "main": "desktop/main.cjs",
   "scripts": {

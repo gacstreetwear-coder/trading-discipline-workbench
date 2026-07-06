@@ -8,7 +8,7 @@
   --line: #d8e0ea;
   --brand: #146c94;
   --brand-2: #0e7490;
-  --green: #15803d;
+  --green: #475569;
   --red: #b42318;
   --amber: #b7791f;
   --blue: #2563eb;
@@ -390,8 +390,8 @@ button {
 }
 
 .discipline-card.attack {
-  border-color: #9fd3b2;
-  background: linear-gradient(180deg, #effaf2 0%, #ffffff 100%);
+  border-color: #f2a7a7;
+  background: linear-gradient(180deg, #fff5f5 0%, #ffffff 100%);
 }
 
 .discipline-card.watch,
@@ -416,7 +416,7 @@ button {
 }
 
 .discipline-card.attack .discipline-value {
-  color: var(--green);
+  color: var(--red);
 }
 
 .discipline-card p,
@@ -527,7 +527,7 @@ button {
 }
 
 .negative {
-  color: var(--green);
+  color: #475569;
 }
 
 .neutral-text {
@@ -539,7 +539,7 @@ button {
 }
 
 .good-text {
-  color: var(--green);
+  color: var(--red);
 }
 
 .risk-pill,
@@ -558,8 +558,8 @@ button {
 }
 
 .risk-pill.attack {
-  background: #dcfce7;
-  color: #166534;
+  background: #fee2e2;
+  color: #991b1b;
 }
 
 .risk-pill.watch,
@@ -579,8 +579,8 @@ button {
 }
 
 .completion-pill.ready {
-  background: #dcfce7;
-  color: #166534;
+  background: #fee2e2;
+  color: #991b1b;
 }
 
 .count-badge {
@@ -599,8 +599,8 @@ button {
 }
 
 .count-badge.green {
-  background: #dcfce7;
-  color: #166534;
+  background: #fee2e2;
+  color: #991b1b;
 }
 
 .primary-button,
@@ -1241,8 +1241,8 @@ td {
 }
 
 .entry-guard-panel.calm {
-  border-color: #bbf7d0;
-  background: #f0fdf4;
+  border-color: #b8d7f0;
+  background: #f0f7ff;
 }
 
 .entry-guard-panel.warn {
@@ -1459,6 +1459,10 @@ input[type="month"]::-webkit-calendar-picker-indicator {
   opacity: 1;
 }
 
+.money-input {
+  font-variant-numeric: tabular-nums;
+}
+
 input[type="date"]:hover::-webkit-calendar-picker-indicator,
 input[type="month"]:hover::-webkit-calendar-picker-indicator,
 input[type="date"]:focus::-webkit-calendar-picker-indicator,
@@ -1515,8 +1519,8 @@ input:disabled {
 }
 
 .tag.green {
-  background: #dcfce7;
-  color: #166534;
+  background: #e2e8f0;
+  color: #334155;
 }
 
 .tag.amber {
@@ -1861,8 +1865,8 @@ input:disabled {
 }
 
 .discipline-result-card.attack {
-  border-color: #bbf7d0;
-  background: #f0fdf4;
+  border-color: #f2a7a7;
+  background: #fff5f5;
 }
 
 .discipline-result-card.warn {

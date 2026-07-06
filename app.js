@@ -15,7 +15,12 @@ const addDaysISO = (days) => {
   return date.toISOString().slice(0, 10);
 };
 const uid = () => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-const num = (value) => Number(value || 0);
+const num = (value) => {
+  const normalized = String(value ?? "").replaceAll(",", "").trim();
+  if (!normalized) return 0;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 
 const money = (value) =>
   new Intl.NumberFormat("zh-CN", {
@@ -1018,7 +1023,7 @@ function renderEntryGuard() {
   $("#entryGuardTitle").textContent = hasBlocking ? "开仓前纪律劝阻" : "开仓前纪律检查";
   $("#entryGuardSummary").textContent = summary;
   $("#entryGuardBadge").textContent = badgeText;
-  $("#entryGuardBadge").className = `count-badge ${hasBlocking ? "red" : hasWarning ? "amber" : "green"}`;
+  $("#entryGuardBadge").className = `count-badge ${hasBlocking ? "red" : hasWarning ? "amber" : "red"}`;
   $("#entryGuardList").innerHTML = items.map(entryGuardItemTemplate).join("");
 }
 
@@ -1318,7 +1323,7 @@ function positionCardTemplate(position) {
           <h4>${escapeHTML(position.name)}</h4>
           <div class="symbol">${escapeHTML(position.symbol)} · ${escapeHTML(position.setup)}</div>
         </div>
-        <span class="tag ${pnl >= 0 ? "red" : "green"}">${pnl >= 0 ? "盈利" : "亏损"}</span>
+        <span class="tag ${pnl >= 0 ? "red" : ""}">${pnl >= 0 ? "盈利" : "亏损"}</span>
       </div>
       <div class="${pnl >= 0 ? "positive" : "negative"}" style="font-weight:800;font-size:22px">${money(pnl)}</div>
       <div class="position-card-grid">
@@ -1354,7 +1359,7 @@ function techSummaryTemplate(position) {
 }
 
 function techTagClass(text) {
-  if (String(text).includes("跌破") || String(text).includes("绿柱") || String(text).includes("死叉")) return "green";
+  if (String(text).includes("跌破") || String(text).includes("绿柱") || String(text).includes("死叉")) return "";
   if (String(text).includes("高位") || String(text).includes("放量")) return "amber";
   if (String(text).includes("多头") || String(text).includes("红柱") || String(text).includes("金叉")) return "red";
   return "";
@@ -1400,7 +1405,7 @@ function renderPositions() {
           const targets = position.targets
             .map(
               (target) =>
-                `<span class="tag ${target.status === "done" ? "green" : "amber"}">${escapeHTML(target.name)} ${price(target.price)} / ${target.pct}%</span>`,
+                `<span class="tag ${target.status === "done" ? "red" : "amber"}">${escapeHTML(target.name)} ${price(target.price)} / ${target.pct}%</span>`,
             )
             .join(" ");
 
@@ -1423,7 +1428,7 @@ function renderPositions() {
               </td>
               <td>
                 <div style="display:grid;gap:8px">
-                  <span class="tag green">止损 ${price(position.stopLoss)}</span>
+                  <span class="tag amber">止损 ${price(position.stopLoss)}</span>
                   <span>${targets}</span>
                   ${techSummaryTemplate(position)}
                   <span class="soft-text">${escapeHTML(position.exitSignal || "")}</span>
@@ -2921,7 +2926,7 @@ function behaviorSummary(records, stageStats, biasSignals, violationRate) {
         : violationRate
           ? "保持警惕"
           : "纪律稳定";
-  const level = tone === "需要纠偏" ? "red" : tone === "保持警惕" || tone === "样本积累" ? "amber" : "green";
+  const level = tone === "需要纠偏" ? "red" : tone === "保持警惕" || tone === "样本积累" ? "amber" : "red";
   return { tone, level, bestStage, worstSignal };
 }
 
@@ -3188,7 +3193,7 @@ function mistakeStatsTemplate(stats) {
             <strong>${item.name}</strong>
             <div class="soft-text">${item.hint}</div>
           </div>
-          <span class="tag ${item.value > 20 ? "red" : item.value > 0 ? "amber" : "green"}">${item.value ? item.value.toFixed(0) : "OK"}</span>
+          <span class="tag ${item.value > 20 ? "red" : item.value > 0 ? "amber" : "red"}">${item.value ? item.value.toFixed(0) : "OK"}</span>
         </div>
       `,
     )
@@ -3250,7 +3255,7 @@ function riskClass(regime) {
 
 function disciplineTone(regime) {
   if (regime === "进攻") return "attack";
-  if (regime === "防守") return "danger";
+  if (regime === "防守") return "warn";
   if (regime === "震荡") return "warn";
   return "watch";
 }
@@ -3458,7 +3463,7 @@ function drawMarketChart() {
   const planSvg = planLevels
     .map((level) => {
       const ly = y(level.value);
-      const color = level.tone === "stop" ? "#15803d" : level.tone === "target2" ? "#b42318" : "#b7791f";
+      const color = level.tone === "stop" ? "#475569" : level.tone === "target2" ? "#b42318" : "#b7791f";
       const label = `${level.label} ${price(level.value)}`;
       const labelWidth = Math.min(190, label.length * 10 + 20);
       return `
@@ -3475,7 +3480,7 @@ function drawMarketChart() {
     .map((item, index) => {
       const cx = x(index);
       const up = item.close >= item.open;
-      const color = up ? "#b42318" : "#15803d";
+      const color = up ? "#b42318" : "#475569";
       const bodyTop = y(Math.max(item.open, item.close));
       const bodyHeight = Math.max(3, Math.abs(y(item.open) - y(item.close)));
       return `
@@ -3536,7 +3541,7 @@ function mainIndicatorLabel() {
 
 function mainIndicatorSeries(candles) {
   if (viewState.mainIndicator === "ma") {
-    const colors = ["#2563eb", "#7c3aed", "#b7791f", "#475569", "#b42318", "#15803d"];
+    const colors = ["#2563eb", "#7c3aed", "#b7791f", "#475569", "#b42318", "#64748b"];
     return viewState.maPeriods.slice(0, 6).map((period, index) => ({
       label: `MA${period}`,
       color: colors[index % colors.length],
@@ -3750,7 +3755,7 @@ function chartTradeMarkers(position, candles, x, y, xStep) {
       const cx = x(index);
       const cy = y(num(trade.price));
       const isBuy = trade.type === "buy";
-      const color = isBuy ? "#b42318" : "#15803d";
+      const color = isBuy ? "#b42318" : "#475569";
       const label = isBuy ? "买" : position.status === "closed" && trade === trades.at(-1) ? "清" : "减";
       const markerSize = Math.max(7, Math.min(12, xStep * 0.42));
       const markerText = `${label} ${price(trade.price)}`;
@@ -3964,7 +3969,7 @@ function drawSingleSubChart(svg, key, candles) {
     const bars = candles
       .map((item, index) => {
         const up = item.close >= item.open;
-        const color = up ? "#b42318" : "#15803d";
+        const color = up ? "#b42318" : "#475569";
         const top = y(item[field]);
         return `<rect x="${x(index) - xStep * 0.32}" y="${top}" width="${Math.max(2, xStep * 0.64)}" height="${Math.max(1, height - pad.bottom - top)}" fill="${color}" opacity="0.72" />`;
       })
@@ -3990,7 +3995,7 @@ function drawSingleSubChart(svg, key, candles) {
       .map((item, index) => {
         const value = num(item.macd);
         const barY = y(value);
-        const color = value >= 0 ? "#b42318" : "#15803d";
+        const color = value >= 0 ? "#b42318" : "#475569";
         return `<rect x="${x(index) - xStep * 0.28}" y="${Math.min(barY, zeroY)}" width="${Math.max(2, xStep * 0.56)}" height="${Math.max(1, Math.abs(zeroY - barY))}" fill="${color}" opacity="0.76" />`;
       })
       .join("");
