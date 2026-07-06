@@ -942,6 +942,16 @@
       </form>
     </dialog>
 
+    <div id="updateProgressPanel" class="update-progress-panel" hidden aria-live="polite">
+      <div class="update-progress-head">
+        <strong id="updateProgressTitle">正在下载更新</strong>
+        <span id="updateProgressPercent">0%</span>
+      </div>
+      <div class="update-progress-track">
+        <div id="updateProgressBar" class="update-progress-bar"></div>
+      </div>
+      <p id="updateProgressDetail"></p>
+    </div>
     <div id="toast" class="toast" aria-live="polite"></div>
     <script src="./app.js"></script>
   </body>

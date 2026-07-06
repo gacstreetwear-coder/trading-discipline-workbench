@@ -428,6 +428,7 @@ let state = loadState();
 ensureStateShape();
 let marketSyncing = false;
 let appMeta = { version: "--", health: null };
+let updateProgressHideTimer = null;
 const viewState = {
   positionFilter: "open",
   calendarMode: "month",
@@ -1131,6 +1132,63 @@ function renderVersionLabel() {
   const node = $("#appVersionLabel");
   if (!node) return;
   node.textContent = appMeta.version && appMeta.version !== "--" ? `版本 ${appMeta.version}` : "版本 --";
+}
+
+function formatBytes(value) {
+  const size = num(value);
+  if (!size) return "";
+  const units = ["B", "KB", "MB", "GB"];
+  let current = size;
+  let index = 0;
+  while (current >= 1024 && index < units.length - 1) {
+    current /= 1024;
+    index += 1;
+  }
+  const digits = index === 0 ? 0 : 1;
+  return `${current.toFixed(digits)} ${units[index]}`;
+}
+
+function updateProgressDetail(status) {
+  const phase = status?.phase || "idle";
+  if (phase === "downloading") {
+    const speed = status.bytesPerSecond ? `${formatBytes(status.bytesPerSecond)}/s` : "";
+    const transferred = status.transferred && status.total ? `${formatBytes(status.transferred)} / ${formatBytes(status.total)}` : "";
+    return [status.message, transferred, speed].filter(Boolean).join(" · ");
+  }
+  return status?.message || "";
+}
+
+function renderUpdateProgress(status = {}) {
+  const panel = $("#updateProgressPanel");
+  if (!panel) return;
+  const phase = status.phase || "idle";
+  clearTimeout(updateProgressHideTimer);
+
+  if (phase === "idle") {
+    panel.hidden = true;
+    return;
+  }
+
+  const rawPercent = Number(status.percent || 0);
+  const percent = phase === "downloaded" ? 100 : Math.min(Math.max(rawPercent, 0), 100);
+  $("#updateProgressTitle").textContent = status.title || "软件更新";
+  $("#updateProgressPercent").textContent = phase === "checking" || phase === "available" ? "" : `${Math.round(percent)}%`;
+  $("#updateProgressBar").style.width = `${percent}%`;
+  $("#updateProgressDetail").textContent = updateProgressDetail(status);
+  panel.dataset.phase = phase;
+  panel.hidden = false;
+
+  if (phase === "downloaded") {
+    updateProgressHideTimer = setTimeout(() => {
+      panel.hidden = true;
+    }, 12000);
+  }
+}
+
+function setupUpdateProgressBridge() {
+  const bridge = window.tradingWorkbench;
+  if (!bridge?.onUpdateStatus) return;
+  bridge.onUpdateStatus((status) => renderUpdateProgress(status));
 }
 
 async function apiJSON(path, options = {}) {
@@ -4847,6 +4905,7 @@ function setupEvents() {
 }
 
 setupGlobalErrorHandlers();
+setupUpdateProgressBridge();
 setupEvents();
 render();
 loadAppMeta();

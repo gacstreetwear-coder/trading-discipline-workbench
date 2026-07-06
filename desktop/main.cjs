@@ -14,6 +14,7 @@ let updatePromptOpen = false;
 let updateCheckInFlight = false;
 let installingUpdate = false;
 let backendShutdownInProgress = false;
+let latestUpdateStatus = null;
 
 function projectRoot() {
   return path.resolve(__dirname, "..");
@@ -25,6 +26,10 @@ function resourcePath(...parts) {
 
 function appIconPath() {
   return app.isPackaged ? resourcePath("web", "assets", "app-icon.png") : resourcePath("assets", "app-icon.png");
+}
+
+function preloadPath() {
+  return path.join(__dirname, "preload.cjs");
 }
 
 function updateLog(message, error) {
@@ -326,10 +331,16 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      preload: preloadPath(),
     },
   });
 
   mainWindow.loadURL(`http://127.0.0.1:${backendPort}/`);
+  mainWindow.webContents.on("did-finish-load", () => {
+    if (latestUpdateStatus) {
+      mainWindow.webContents.send("update-status", latestUpdateStatus);
+    }
+  });
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     shell.openExternal(url);
     return { action: "deny" };
@@ -338,6 +349,16 @@ function createWindow() {
 
 function versionLabel(info) {
   return info?.version ? `v${info.version}` : "新版本";
+}
+
+function sendUpdateStatus(status) {
+  latestUpdateStatus = {
+    time: new Date().toISOString(),
+    ...status,
+  };
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("update-status", latestUpdateStatus);
+  }
 }
 
 function setupAutoUpdater() {
@@ -352,8 +373,24 @@ function setupAutoUpdater() {
     debug: (message) => updateLog(`DEBUG ${message}`),
   };
 
+  autoUpdater.on("checking-for-update", () => {
+    sendUpdateStatus({
+      phase: "checking",
+      title: "正在检查更新",
+      message: "正在确认是否有新版本。",
+      percent: 0,
+    });
+  });
+
   autoUpdater.on("update-available", async (info) => {
     if (!mainWindow || updatePromptOpen) return;
+    sendUpdateStatus({
+      phase: "available",
+      title: "发现新版本",
+      message: `${versionLabel(info)} 可下载。`,
+      version: info?.version || "",
+      percent: 0,
+    });
     updatePromptOpen = true;
     const result = await dialog.showMessageBox(mainWindow, {
       type: "info",
@@ -368,22 +405,70 @@ function setupAutoUpdater() {
 
     if (result.response === 0) {
       updateLog(`download-start ${versionLabel(info)}`);
+      sendUpdateStatus({
+        phase: "downloading",
+        title: "正在下载更新",
+        message: `${versionLabel(info)} 下载中。`,
+        version: info?.version || "",
+        percent: 0,
+      });
       mainWindow.setProgressBar(2);
       autoUpdater.downloadUpdate().catch(() => {
         mainWindow?.setProgressBar(-1);
+        sendUpdateStatus({
+          phase: "error",
+          title: "更新下载失败",
+          message: "请稍后重试，或到 GitHub Releases 手动下载安装包。",
+          percent: 0,
+        });
         dialog.showErrorBox("更新下载失败", "请稍后重试，或到 GitHub Releases 手动下载安装包。");
       });
+    } else {
+      sendUpdateStatus({
+        phase: "idle",
+        title: "",
+        message: "",
+        percent: 0,
+      });
     }
+  });
+
+  autoUpdater.on("update-not-available", () => {
+    sendUpdateStatus({
+      phase: "idle",
+      title: "",
+      message: "",
+      percent: 0,
+    });
   });
 
   autoUpdater.on("download-progress", (progress) => {
     const percent = Number(progress?.percent || 0);
     mainWindow?.setProgressBar(Math.min(Math.max(percent / 100, 0), 1));
+    const speed = Number(progress?.bytesPerSecond || 0);
+    const transferred = Number(progress?.transferred || 0);
+    const total = Number(progress?.total || 0);
+    sendUpdateStatus({
+      phase: "downloading",
+      title: "正在下载更新",
+      message: "下载完成后会提示你重启安装。",
+      percent,
+      bytesPerSecond: speed,
+      transferred,
+      total,
+    });
   });
 
   autoUpdater.on("update-downloaded", async (info) => {
     updateLog(`update-downloaded ${versionLabel(info)}`);
     mainWindow?.setProgressBar(-1);
+    sendUpdateStatus({
+      phase: "downloaded",
+      title: "更新已下载",
+      message: `${versionLabel(info)} 已下载完成，等待重启安装。`,
+      version: info?.version || "",
+      percent: 100,
+    });
     if (!mainWindow || updatePromptOpen) return;
     updatePromptOpen = true;
     const result = await dialog.showMessageBox(mainWindow, {
@@ -405,6 +490,12 @@ function setupAutoUpdater() {
   autoUpdater.on("error", (error) => {
     updateLog("updater-error", error);
     mainWindow?.setProgressBar(-1);
+    sendUpdateStatus({
+      phase: "error",
+      title: "更新失败",
+      message: error?.message || "更新过程出现异常。",
+      percent: 0,
+    });
     if (installingUpdate) {
       installingUpdate = false;
       showDiagnosticDialog(
@@ -447,7 +538,13 @@ async function checkForUpdates() {
   updateCheckInFlight = true;
   try {
     await autoUpdater.checkForUpdates();
-  } catch {
+  } catch (error) {
+    sendUpdateStatus({
+      phase: "error",
+      title: "检查更新失败",
+      message: error?.message || "暂时无法检查更新。",
+      percent: 0,
+    });
     // 自动更新失败不能影响软件正常使用。
   } finally {
     updateCheckInFlight = false;
