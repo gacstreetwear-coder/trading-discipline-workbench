@@ -1,0 +1,82 @@
+{
+  "name": "trading-discipline-workbench",
+  "version": "1.0.0",
+  "description": "个人股票交易纪律、复盘和行为纠偏工作台",
+  "main": "desktop/main.cjs",
+  "scripts": {
+    "dev": "electron .",
+    "serve": "python3 server.py",
+    "check": "node --check app.js && python3 -m py_compile server.py",
+    "build:backend": "python -m PyInstaller --clean --noconfirm --onefile --name trading-workbench-server --distpath dist-backend --workpath build-backend server.py",
+    "dist:mac": "npm run check && npm run build:backend && electron-builder --mac dmg zip",
+    "dist:win": "npm run check && npm run build:backend && electron-builder --win nsis zip",
+    "dist": "npm run check && npm run build:backend && electron-builder"
+  },
+  "keywords": [
+    "trading",
+    "journal",
+    "desktop"
+  ],
+  "author": "Trading Discipline Workbench",
+  "license": "UNLICENSED",
+  "type": "commonjs",
+  "build": {
+    "appId": "com.local.tradingdiscipline.workbench",
+    "productName": "交易纪律工作台",
+    "asar": true,
+    "files": [
+      "desktop/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "dist-backend",
+        "to": "backend",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": ".",
+        "to": "web",
+        "filter": [
+          "index.html",
+          "app.js",
+          "styles.css",
+          "assets/**/*"
+        ]
+      }
+    ],
+    "directories": {
+      "output": "release"
+    },
+    "mac": {
+      "category": "public.app-category.finance",
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        "zip"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  },
+  "devDependencies": {
+    "electron": "^43.0.0",
+    "electron-builder": "^26.15.3"
+  }
+}
