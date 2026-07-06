@@ -19,8 +19,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG_NAME: ${{ github.ref_name }}
         run: |
-          gh release view "$TAG_NAME" >/dev/null 2>&1 || \
+          gh release view "$TAG_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
             gh release create "$TAG_NAME" \
+              --repo "$GITHUB_REPOSITORY" \
               --title "交易纪律工作台 $TAG_NAME" \
               --notes "自动更新发布版本 $TAG_NAME"
 
