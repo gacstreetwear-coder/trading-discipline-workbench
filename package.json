@@ -8,9 +8,9 @@
     "serve": "python3 server.py",
     "check": "node --check app.js && python3 -m py_compile server.py",
     "build:backend": "python -m PyInstaller --clean --noconfirm --onefile --name trading-workbench-server --distpath dist-backend --workpath build-backend server.py",
-    "dist:mac": "npm run check && npm run build:backend && electron-builder --mac dmg zip",
-    "dist:win": "npm run check && npm run build:backend && electron-builder --win nsis zip",
-    "dist": "npm run check && npm run build:backend && electron-builder"
+    "dist:mac": "npm run check && npm run build:backend && electron-builder --mac dmg zip --publish never",
+    "dist:win": "npm run check && npm run build:backend && electron-builder --win nsis zip --publish never",
+    "dist": "npm run check && npm run build:backend && electron-builder --publish never"
   },
   "keywords": [
     "trading",
