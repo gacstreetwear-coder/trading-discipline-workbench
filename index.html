@@ -63,10 +63,28 @@
             <div id="todayDateLabel" class="date-badge"></div>
           </div>
 
+          <div class="dashboard-grid">
+            <article class="metric-panel">
+              <div class="metric-label">总仓位</div>
+              <div class="metric-value" id="metricExposure">0%</div>
+              <div class="metric-foot" id="metricExposureHint">未超过计划上限</div>
+            </article>
+            <article class="metric-panel">
+              <div class="metric-label">浮动盈亏</div>
+              <div class="metric-value" id="metricPnl">¥0</div>
+              <div class="metric-foot" id="metricPnlHint">按当前价估算</div>
+            </article>
+            <article class="metric-panel">
+              <div class="metric-label">本周买/卖</div>
+              <div class="metric-value" id="metricTradeRatio">0 / 0</div>
+              <div class="metric-foot" id="metricTradeHint">卖出动作越充分越好</div>
+            </article>
+          </div>
+
           <section class="discipline-hero">
             <div class="discipline-header">
               <div>
-                <h3 id="disciplineTitle">交易纪律</h3>
+                <h3 id="disciplineTitle">交易总控</h3>
                 <p id="disciplineCycleText" class="discipline-cycle-text"></p>
               </div>
               <button class="ghost-button" data-view-shortcut="plans">编辑</button>
@@ -90,30 +108,23 @@
               </article>
             </div>
             <p id="marketNotes" class="discipline-notes"></p>
+            <div class="control-subsection">
+              <div class="control-subhead">
+                <h4>本周方向</h4>
+                <span>方向、仓位和本周禁止事项</span>
+              </div>
+              <div class="weekly-plan-grid">
+                <article>
+                  <span class="mini-label">方向与仓位</span>
+                  <div id="weeklyFocusPreview" class="execution-preview"></div>
+                </article>
+                <article class="danger-zone">
+                  <span class="mini-label">本周禁止</span>
+                  <div id="weeklyAvoidPreview" class="execution-preview"></div>
+                </article>
+              </div>
+            </div>
           </section>
-
-          <div class="dashboard-grid">
-            <article class="metric-panel">
-              <div class="metric-label">总仓位</div>
-              <div class="metric-value" id="metricExposure">0%</div>
-              <div class="metric-foot" id="metricExposureHint">未超过计划上限</div>
-            </article>
-            <article class="metric-panel">
-              <div class="metric-label">浮动盈亏</div>
-              <div class="metric-value" id="metricPnl">¥0</div>
-              <div class="metric-foot" id="metricPnlHint">按当前价估算</div>
-            </article>
-            <article class="metric-panel">
-              <div class="metric-label">本周买/卖</div>
-              <div class="metric-value" id="metricTradeRatio">0 / 0</div>
-              <div class="metric-foot" id="metricTradeHint">卖出动作越充分越好</div>
-            </article>
-            <article class="metric-panel">
-              <div class="metric-label">未来事件</div>
-              <div class="metric-value" id="metricEvents">0</div>
-              <div class="metric-foot">未来 7 天</div>
-            </article>
-          </div>
 
           <div class="dashboard-layout">
             <section class="panel decision-panel">
@@ -123,28 +134,28 @@
               </div>
               <div class="execution-list">
                 <article>
-                  <span class="mini-label">今日策略</span>
-                  <div id="dailyStrategyPreview" class="execution-preview"></div>
-                </article>
-                <article>
-                  <span class="mini-label">今日任务</span>
+                  <span class="mini-label">持仓检查</span>
                   <div id="dailyTasksPreview" class="execution-preview"></div>
                 </article>
+                <article>
+                  <span class="mini-label">观察标的</span>
+                  <div id="watchlistPreview" class="execution-preview"></div>
+                </article>
                 <article class="danger-zone">
-                  <span class="mini-label">今日禁止</span>
+                  <span class="mini-label">禁止事项</span>
                   <div id="dailyAvoidPreview" class="execution-preview"></div>
                 </article>
               </div>
             </section>
-
-            <section class="panel alert-panel">
-              <div class="panel-title-row">
-                <h3>操作提醒</h3>
-                <span id="alertCount" class="count-badge">0</span>
-              </div>
-              <div id="alertsList" class="alert-list"></div>
-            </section>
           </div>
+
+          <section class="panel alert-panel dashboard-alert-block">
+            <div class="panel-title-row">
+              <h3>操作提醒</h3>
+              <span id="alertCount" class="count-badge">0</span>
+            </div>
+            <div id="alertsList" class="alert-list"></div>
+          </section>
 
           <div class="panel">
             <div class="panel-title-row">
@@ -264,12 +275,13 @@
               <div class="fields two">
                 <label>
                   股票代码
-                  <input name="symbol" placeholder="例如 600519" required />
+                  <input name="symbol" placeholder="例如 600519" />
                 </label>
                 <label>
                   股票名称
-                  <input name="name" placeholder="例如 贵州茅台" required />
+                  <input name="name" placeholder="例如 贵州茅台" />
                 </label>
+                <p class="field-hint span-two">股票代码或股票名称填一个即可；如果要自动同步行情，建议填写股票代码。</p>
                 <label>
                   开仓日期
                   <input name="openedAt" type="date" required />
@@ -579,12 +591,12 @@
                 <div class="plan-section-head">
                   <div>
                     <h3>日计划</h3>
-                    <p class="soft-text">每天盘前或晚上更新，工作台会直接读取这里的今日策略、今日任务和今日禁止。</p>
+                    <p class="soft-text">每天盘前或晚上更新，工作台会直接读取这里的持仓检查、观察标的和禁止事项。</p>
                   </div>
                   <button type="button" class="ghost-button" id="generateDailyPlanBtn">生成今日执行草案</button>
                 </div>
-                <div class="plan-list-block" data-plan-field="dailyStrategyItems"></div>
-                <div class="plan-list-block" data-plan-field="dailyTaskItems"></div>
+                <div class="plan-list-block" data-plan-field="holdingCheckItems"></div>
+                <div class="plan-list-block watchlist" data-plan-field="watchlistItems"></div>
                 <div class="plan-list-block danger" data-plan-field="dailyAvoidItems"></div>
                 <button type="submit" class="primary-button">保存</button>
               </section>

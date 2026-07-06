@@ -248,8 +248,8 @@ button {
 }
 
 .metric-panel {
-  padding: 18px;
-  min-height: 124px;
+  padding: 14px 16px;
+  min-height: 92px;
 }
 
 .panel h3,
@@ -275,8 +275,23 @@ button {
 .stats-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
+  gap: 10px;
   margin-bottom: 14px;
+}
+
+#dashboard .dashboard-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfe;
+  box-shadow: var(--shadow);
+}
+
+#dashboard .dashboard-grid .metric-panel {
+  border-color: #e3eaf2;
+  background: #ffffff;
+  box-shadow: none;
 }
 
 .stats-period-panel {
@@ -446,15 +461,46 @@ button {
   border-top: 1px solid rgba(180, 35, 24, 0.16);
 }
 
+.control-subsection {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(180, 35, 24, 0.16);
+}
+
+.control-subhead {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+}
+
+.control-subhead h4 {
+  margin: 0;
+  font-size: 16px;
+  line-height: 1.3;
+}
+
+.control-subhead span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
 .dashboard-layout {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 14px;
   margin-bottom: 14px;
 }
 
 .dashboard-layout > .panel {
-  grid-column: span 2;
+  grid-column: auto;
+}
+
+.dashboard-alert-block {
+  margin-bottom: 14px;
 }
 
 .split-layout {
@@ -530,10 +576,20 @@ button {
   line-height: 1;
 }
 
+#dashboard .dashboard-grid .metric-value {
+  font-size: clamp(20px, 2.1vw, 28px);
+}
+
 .metric-foot {
   margin-top: 12px;
   color: var(--muted);
   font-size: 13px;
+}
+
+#dashboard .dashboard-grid .metric-foot {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .positive {
@@ -782,8 +838,27 @@ button {
   margin-bottom: 14px;
 }
 
+.weekly-plan-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+  gap: 10px;
+}
+
+.weekly-plan-grid article {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfe;
+  padding: 12px;
+}
+
+.weekly-plan-grid .danger-zone {
+  border-color: #f3b6b6;
+  background: #fffafa;
+}
+
 .execution-list {
   display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
 
@@ -797,6 +872,92 @@ button {
 .execution-preview {
   margin: 6px 0 0;
   line-height: 1.6;
+}
+
+.execution-task-list {
+  display: grid;
+  gap: 8px;
+}
+
+.execution-task {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+  min-height: 68px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--amber);
+  border-radius: 8px;
+  background: #fffaf0;
+  padding: 10px;
+}
+
+.execution-task.profit {
+  border-left-color: var(--red);
+  background: #fff5f5;
+}
+
+.execution-task.stop {
+  border-left-color: #15803d;
+  background: #f0fdf4;
+}
+
+.execution-task.weekly {
+  border-left-color: var(--amber);
+  background: #fffaf0;
+}
+
+.execution-task.forbid {
+  border-left-color: var(--red);
+  background: #fff7f7;
+}
+
+.execution-task-main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.execution-task-main strong {
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.35;
+}
+
+.execution-task-main span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.execution-status-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.execution-status-tag.profit,
+.execution-status-tag.forbid {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.execution-status-tag.stop {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.execution-status-tag.weekly {
+  background: #fef3c7;
+  color: #92400e;
 }
 
 .execution-preview .compact-plan-list {
@@ -1378,6 +1539,11 @@ td {
   background: #fffafa;
 }
 
+.plan-list-block.watchlist {
+  border-color: #f2ce85;
+  background: #fffdf7;
+}
+
 .plan-list-head {
   display: flex;
   align-items: center;
@@ -1430,6 +1596,51 @@ td {
   resize: vertical;
 }
 
+.watchlist-plan-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 38px;
+  align-items: start;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 10px;
+}
+
+.watchlist-editor {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.watchlist-identity-grid,
+.watchlist-condition-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.watchlist-identity-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.watchlist-condition-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.watchlist-editor label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.watchlist-editor input,
+.watchlist-editor select,
+.watchlist-editor textarea {
+  min-height: 38px;
+}
+
 .plan-remove-button {
   width: 38px;
   min-height: 38px;
@@ -1456,6 +1667,18 @@ td {
 
 .compact-plan-list span {
   color: #273244;
+}
+
+.field-hint {
+  margin: -4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.span-two {
+  grid-column: span 2;
 }
 
 .fields {
@@ -2138,7 +2361,8 @@ input:disabled {
   .insight-grid,
   .stats-ops-grid,
   .analytics-grid,
-  .calendar-layout {
+  .calendar-layout,
+  .weekly-plan-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -2158,6 +2382,10 @@ input:disabled {
   .split-layout,
   .form-grid {
     grid-template-columns: 1fr;
+  }
+
+  #dashboard .dashboard-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .plan-item-row {
@@ -2248,7 +2476,20 @@ input:disabled {
   .indicator-strip,
   .chart-toolbar,
   .entry-guard-list,
+  .weekly-plan-grid,
+  .execution-list,
+  .watchlist-plan-row,
+  .watchlist-identity-grid,
+  .watchlist-condition-grid,
   .plan-item-row {
+    grid-template-columns: 1fr;
+  }
+
+  .span-two {
+    grid-column: auto;
+  }
+
+  #dashboard .dashboard-grid {
     grid-template-columns: 1fr;
   }
 

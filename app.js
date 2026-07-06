@@ -103,26 +103,26 @@ const PLAN_ITEM_CONFIG = {
   weeklyAvoidItems: {
     title: "本周禁止事项",
     addLabel: "添加周禁止",
-    placeholder: "例如：重要数据发布前不追涨。",
-    types: ["不开新仓", "不追涨", "不补仓", "不逆纪律", "自定义"],
+    placeholder: "例如：重要数据发布前追涨。",
+    types: ["开新仓", "追涨", "补仓", "逆纪律", "自定义"],
   },
-  dailyStrategyItems: {
-    title: "今日策略",
-    addLabel: "添加策略",
-    placeholder: "例如：指数未放量突破前，只观察不进攻。",
-    types: ["市场策略", "持仓策略", "开仓策略", "事件策略", "自定义"],
+  holdingCheckItems: {
+    title: "持仓检查",
+    addLabel: "添加持仓检查",
+    placeholder: "例如：到第一止盈位减仓，跌破止损点先执行风控。",
+    types: ["止盈检查", "止损检查"],
   },
-  dailyTaskItems: {
-    title: "今日任务",
-    addLabel: "添加任务",
-    placeholder: "例如：检查持仓是否触及第一止盈位。",
-    types: ["持仓检查", "观察标的", "减仓执行", "事件跟踪", "复盘记录", "自定义"],
+  watchlistItems: {
+    title: "观察标的",
+    addLabel: "添加观察标的",
+    placeholder: "例如：回踩前高不破，日线KDJ低位拐头，MACD绿柱缩短。",
+    types: ["观察"],
   },
   dailyAvoidItems: {
-    title: "今日禁止事项",
+    title: "禁止事项",
     addLabel: "添加禁止事项",
     placeholder: "例如：盘中临时起意不下单。",
-    types: ["不追涨", "不补仓", "不超仓位", "不计划外交易", "自定义"],
+    types: ["追涨", "补仓", "超仓位", "计划外交易", "自定义"],
   },
 };
 const EVENT_SCOPE_GROUPS = {
@@ -345,7 +345,7 @@ function disciplineCycleRange() {
 }
 
 function disciplineTitleText() {
-  return "交易纪律";
+  return "交易总控";
 }
 
 function isDisciplineCycleExpired() {
@@ -399,14 +399,14 @@ const defaultState = () => ({
   routine: {
     weeklyFocus: "只做计划内的趋势延续和放量突破，单票仓位不超过 25%。",
     weeklyAvoid: "不在重要数据发布前追涨，不因为单日亏损加码。",
-    dailyStrategy: "谨慎观察，优先处理持仓到位动作，不做计划外追涨。",
     dailyTasks: "检查持仓是否到止盈位；只观察强势板块中的计划标的。",
     dailyAvoid: "盘中临时起意、无止损开仓、连续亏损后补仓。",
     weeklyFocusItems: [{ type: "方向判断", text: "只做计划内的趋势延续和放量突破，单票仓位不超过 25%。" }],
-    weeklyAvoidItems: [{ type: "不追涨", text: "不在重要数据发布前追涨，不因为单日亏损加码。" }],
-    dailyStrategyItems: [{ type: "市场策略", text: "谨慎观察，优先处理持仓到位动作，不做计划外追涨。" }],
+    weeklyAvoidItems: [{ type: "追涨", text: "不在重要数据发布前追涨，不因为单日亏损加码。" }],
     dailyTaskItems: [{ type: "持仓检查", text: "检查持仓是否到止盈位；只观察强势板块中的计划标的。" }],
-    dailyAvoidItems: [{ type: "不计划外交易", text: "盘中临时起意、无止损开仓、连续亏损后补仓。" }],
+    holdingCheckItems: [{ type: "持仓检查", text: "检查持仓是否到止盈位；只观察强势板块中的计划标的。" }],
+    watchlistItems: [],
+    dailyAvoidItems: [{ type: "计划外交易", text: "盘中临时起意、无止损开仓、连续亏损后补仓。" }],
   },
   positions: [],
   trades: [],
@@ -466,18 +466,118 @@ function normalizePlanItems(items, fallbackText = "", fallbackType = "") {
   const list = Array.isArray(items) ? items : fallbackText ? [{ type: fallbackType, text: fallbackText }] : [];
   return list
     .map((item) => {
-      if (typeof item === "string") return { type: fallbackType, text: item.trim() };
+      if (typeof item === "string") return { type: normalizeAvoidType(fallbackType), text: item.trim() };
       return {
-        type: String(item?.type || fallbackType || "自定义").trim(),
+        type: normalizeAvoidType(item?.type || fallbackType || "自定义"),
         text: String(item?.text || "").trim(),
       };
     })
     .filter((item) => item.text);
 }
 
+function normalizeAvoidType(value) {
+  const text = String(value || "").trim();
+  const map = {
+    不开新仓: "开新仓",
+    不追涨: "追涨",
+    不补仓: "补仓",
+    不逆纪律: "逆纪律",
+    不超仓位: "超仓位",
+    不计划外交易: "计划外交易",
+  };
+  return map[text] || text;
+}
+
+function normalizeWatchlistItems(items, keepBlank = false) {
+  const list = Array.isArray(items) ? items : [];
+  return list
+    .map((item) => {
+      if (typeof item === "string") {
+        return {
+          symbol: "",
+          name: "",
+          trigger: item.trim(),
+          level: "",
+          daily: "",
+          weekly: "",
+          monthly: "",
+          macd: "",
+          kdj: "",
+          note: "",
+        };
+      }
+      return {
+        symbol: normalizeSymbol(item?.symbol || ""),
+        name: String(item?.name || "").trim(),
+        trigger: String(item?.trigger || item?.text || "").trim(),
+        level: String(item?.level || item?.priceLevel || item?.kline || "").trim(),
+        daily: String(item?.daily || item?.dailyTrend || "").trim(),
+        weekly: String(item?.weekly || item?.weeklyTrend || "").trim(),
+        monthly: String(item?.monthly || item?.monthlyTrend || "").trim(),
+        macd: String(item?.macd || "").trim(),
+        kdj: String(item?.kdj || "").trim(),
+        note: String(item?.note || "").trim(),
+      };
+    })
+    .filter((item) => keepBlank || watchlistItemHasContent(item));
+}
+
+function watchlistItemHasContent(item) {
+  return ["symbol", "name", "trigger", "level", "daily", "weekly", "monthly", "macd", "kdj", "note"].some((key) =>
+    String(item?.[key] || "").trim(),
+  );
+}
+
+function normalizeHoldingCheckItems(items, keepBlank = false) {
+  const list = Array.isArray(items) ? items : [];
+  return list
+    .map((item) => {
+      if (typeof item === "string") {
+        return {
+          type: "止盈检查",
+          symbol: "",
+          name: "",
+          level: "",
+          daily: "",
+          weekly: "",
+          monthly: "",
+          macd: "",
+          kdj: "",
+          note: item.trim(),
+        };
+      }
+      const typeText = String(item?.type || "").includes("止损") ? "止损检查" : "止盈检查";
+      return {
+        type: typeText,
+        symbol: normalizeSymbol(item?.symbol || ""),
+        name: String(item?.name || "").trim(),
+        level: String(item?.level || item?.priceLevel || item?.targetPrice || item?.stopPrice || "").trim(),
+        daily: String(item?.daily || item?.dailyTrend || "").trim(),
+        weekly: String(item?.weekly || item?.weeklyTrend || "").trim(),
+        monthly: String(item?.monthly || item?.monthlyTrend || "").trim(),
+        macd: String(item?.macd || "").trim(),
+        kdj: String(item?.kdj || "").trim(),
+        note: String(item?.note || item?.text || "").trim(),
+      };
+    })
+    .filter((item) => keepBlank || holdingCheckItemHasContent(item));
+}
+
+function holdingCheckItemHasContent(item) {
+  return ["symbol", "name", "level", "daily", "weekly", "monthly", "macd", "kdj", "note"].some((key) =>
+    String(item?.[key] || "").trim(),
+  );
+}
+
 function planItemsToText(items) {
   return normalizePlanItems(items)
     .map((item, index) => `${index + 1}. ${item.type ? `【${item.type}】` : ""}${item.text}`)
+    .join("\n");
+}
+
+function holdingCheckItemsToText(items) {
+  return normalizeHoldingCheckItems(items)
+    .map((item, index) => `${index + 1}. 【${item.type}】${holdingConditionText(item)}`)
     .join("\n");
 }
 
@@ -506,27 +606,26 @@ function ensureStateShape() {
   state.routine.weeklyAvoidItems = normalizePlanItems(
     state.routine.weeklyAvoidItems,
     state.routine.weeklyAvoid || defaults.routine.weeklyAvoid,
-    "不追涨",
+    "追涨",
   );
-  state.routine.dailyStrategyItems = normalizePlanItems(
-    state.routine.dailyStrategyItems,
-    state.routine.dailyStrategy || defaults.routine.dailyStrategy,
-    "市场策略",
+  const holdingCheckSource =
+    state.routine.holdingCheckItems === defaults.routine.holdingCheckItems && state.routine.dailyTaskItems
+      ? state.routine.dailyTaskItems
+      : state.routine.holdingCheckItems;
+  state.routine.holdingCheckItems = normalizeHoldingCheckItems(
+    holdingCheckSource,
+    true,
   );
-  state.routine.dailyTaskItems = normalizePlanItems(
-    state.routine.dailyTaskItems,
-    state.routine.dailyTasks || defaults.routine.dailyTasks,
-    "持仓检查",
-  );
+  state.routine.watchlistItems = normalizeWatchlistItems(state.routine.watchlistItems || defaults.routine.watchlistItems);
   state.routine.dailyAvoidItems = normalizePlanItems(
     state.routine.dailyAvoidItems,
     state.routine.dailyAvoid || defaults.routine.dailyAvoid,
-    "不计划外交易",
+    "计划外交易",
   );
+  state.routine.dailyTaskItems = state.routine.holdingCheckItems;
   state.routine.weeklyFocus = planItemsToText(state.routine.weeklyFocusItems);
   state.routine.weeklyAvoid = planItemsToText(state.routine.weeklyAvoidItems);
-  state.routine.dailyStrategy = planItemsToText(state.routine.dailyStrategyItems);
-  state.routine.dailyTasks = planItemsToText(state.routine.dailyTaskItems);
+  state.routine.dailyTasks = holdingCheckItemsToText(state.routine.holdingCheckItems);
   state.routine.dailyAvoid = planItemsToText(state.routine.dailyAvoidItems);
   state.customIndicators = Array.isArray(state.customIndicators) ? state.customIndicators : [];
   state.positions = Array.isArray(state.positions) ? state.positions : [];
@@ -546,6 +645,8 @@ function ensureStateShape() {
   state.marketData.lastScanAt = state.marketData.lastScanAt || "";
   state.marketData.lastEventSyncAt = state.marketData.lastEventSyncAt || "";
   state.positions.forEach((position) => {
+    position.symbol = normalizeSymbol(position.symbol || position.name);
+    position.name = String(position.name || position.symbol || "").trim();
     position.targets = Array.isArray(position.targets) ? position.targets : [];
     position.status = position.status || "open";
     if (!position.supportLevel && !position.resistanceLevel && position.supportResistance) {
@@ -864,18 +965,6 @@ function computeAlerts() {
     }
 
     technicalRiskAlerts(position).forEach((alert) => alerts.push(alert));
-  });
-
-  const today = todayISO();
-  state.events.forEach((event) => {
-    const diff = daysBetween(today, event.date);
-    if (diff >= 0 && diff <= 2 && event.impact !== "低") {
-      alerts.push({
-        level: event.impact === "高" ? "high" : "medium",
-        title: `${diff === 0 ? "今日" : `${diff} 天后`}有${event.impact}影响事件`,
-        body: `${eventDisplayTitle(event)}。事件前检查仓位和新仓计划。`,
-      });
-    }
   });
 
   return alerts;
@@ -1411,10 +1500,6 @@ function renderDashboard() {
   const pnl = floatingPnl();
   const buyCount = weekTrades("buy").length;
   const sellCount = weekTrades("sell").length;
-  const upcomingEvents = state.events.filter((event) => {
-    const diff = daysBetween(todayISO(), event.date);
-    return diff >= 0 && diff <= 7;
-  });
 
   $("#todayDateLabel").innerHTML = `
     <span>${todayParts.date}</span>
@@ -1441,7 +1526,6 @@ function renderDashboard() {
     ? `行情同步 ${formatDateTime(state.marketData.lastScanAt)}`
     : "按当前价估算";
   $("#metricTradeRatio").textContent = `${buyCount} / ${sellCount}`;
-  $("#metricEvents").textContent = upcomingEvents.length;
 
   $("#marketRegime").textContent = state.market.regime;
   $("#marketCap").textContent = percent(state.market.positionCap, 0);
@@ -1457,9 +1541,11 @@ function renderDashboard() {
   $("#regimeCard").className = `discipline-card ${disciplineTone(state.market.regime)}`;
   $("#capCard").className = `discipline-card ${exposure > state.market.positionCap ? "danger" : "calm"}`;
   $("#permissionCard").className = `discipline-card ${permissionTone(state.market.allowNew)}`;
-  renderPlanPreview("#dailyStrategyPreview", state.routine.dailyStrategyItems);
-  renderPlanPreview("#dailyTasksPreview", state.routine.dailyTaskItems);
-  renderPlanPreview("#dailyAvoidPreview", state.routine.dailyAvoidItems);
+  renderExecutionPreview("#weeklyFocusPreview", weeklyFocusExecutionItems());
+  renderExecutionPreview("#weeklyAvoidPreview", weeklyAvoidExecutionItems());
+  renderExecutionPreview("#dailyTasksPreview", holdingCheckExecutionItems());
+  renderExecutionPreview("#watchlistPreview", watchlistExecutionItems());
+  renderExecutionPreview("#dailyAvoidPreview", avoidExecutionItems());
 
   const alerts = computeAlerts();
   $("#alertCount").textContent = alerts.length;
@@ -1492,6 +1578,196 @@ function renderDashboard() {
   $$("[data-dashboard-add-position]").forEach((button) => {
     button.addEventListener("click", () => showView("trade"));
   });
+}
+
+function renderExecutionPreview(selector, items) {
+  const node = $(selector);
+  if (!node) return;
+  const list = items.filter(Boolean).slice(0, 8);
+  node.innerHTML = list.length
+    ? `<div class="execution-task-list">${list.map(executionTaskTemplate).join("")}</div>`
+    : `<span class="soft-text">未填写</span>`;
+}
+
+function executionTaskTemplate(item) {
+  const tone = item.tone || "watch";
+  return `
+    <div class="execution-task ${tone}">
+      <div class="execution-task-main">
+        <strong>${escapeHTML(item.title || "待执行事项")}</strong>
+        <span>${escapeHTML(item.body || "")}</span>
+      </div>
+      <span class="execution-status-tag ${tone}">${escapeHTML(item.tag || executionToneLabel(tone))}</span>
+    </div>
+  `;
+}
+
+function executionToneLabel(tone) {
+  if (tone === "profit") return "止盈";
+  if (tone === "stop") return "止损";
+  if (tone === "forbid") return "禁止";
+  if (tone === "weekly") return "方向";
+  return "观察";
+}
+
+function weeklyFocusExecutionItems() {
+  return normalizePlanItems(state.routine.weeklyFocusItems).map((item, index) => ({
+    title: item.type || `本周方向 ${index + 1}`,
+    body: item.text,
+    tone: "weekly",
+    tag: "方向",
+  }));
+}
+
+function weeklyAvoidExecutionItems() {
+  return normalizePlanItems(state.routine.weeklyAvoidItems).map((item, index) => ({
+    title: item.type || `本周禁止 ${index + 1}`,
+    body: item.text,
+    tone: "forbid",
+    tag: "禁止",
+  }));
+}
+
+function avoidExecutionItems() {
+  return normalizePlanItems(state.routine.dailyAvoidItems).map((item, index) => ({
+    title: item.type || `禁止事项 ${index + 1}`,
+    body: item.text,
+    tone: "forbid",
+    tag: "禁止",
+  }));
+}
+
+function holdingCheckExecutionItems() {
+  const positionItems = getOpenPositions().map(holdingExecutionItem);
+  const manualItems = normalizeHoldingCheckItems(state.routine.holdingCheckItems || state.routine.dailyTaskItems).map(
+    holdingPlanExecutionItem,
+  );
+  return [...positionItems, ...manualItems];
+}
+
+function holdingPlanExecutionItem(item) {
+  const position = findPositionForPlanSecurity(item);
+  const level = extractFirstNumber(item.level);
+  const current = position ? num(position.currentPrice) : 0;
+  const hasPrice = position && positionHasSyncedPrice(position);
+  const isStop = item.type === "止损检查";
+  const triggered = Boolean(hasPrice && level && (isStop ? current <= level : current >= level));
+  const label = isStop ? "止损" : "止盈";
+  return {
+    title: `${securityDisplayName(item)} ${item.type}`,
+    body: holdingConditionText(item, position),
+    tone: triggered ? (isStop ? "stop" : "profit") : "watch",
+    tag: triggered ? label : "观察",
+  };
+}
+
+function holdingExecutionItem(position) {
+  const current = num(position.currentPrice);
+  const stop = num(position.stopLoss);
+  const hasPrice = positionHasSyncedPrice(position);
+  const reachedTarget = hasPrice
+    ? position.targets.find((target) => target.status !== "done" && num(target.price) && current >= num(target.price))
+    : null;
+
+  if (hasPrice && stop && current <= stop) {
+    return {
+      title: `${securityDisplayName(position)} 触发止损`,
+      body: `现价 ${price(current)}，止损 ${price(stop)}，从成本到止损约 ${signedPercent(levelReturnPct(position, stop))}。`,
+      tone: "stop",
+      tag: "止损",
+    };
+  }
+
+  if (reachedTarget) {
+    return {
+      title: `${securityDisplayName(position)} 到达${reachedTarget.name || "止盈位"}`,
+      body: `现价 ${price(current)}，计划价 ${price(reachedTarget.price)}，从成本到该价位约 ${signedPercent(
+        levelReturnPct(position, reachedTarget.price),
+      )}。`,
+      tone: "profit",
+      tag: "止盈",
+    };
+  }
+
+  const next = position.targets.find((target) => target.status !== "done" && num(target.price));
+  const priceText = hasPrice ? `现价 ${price(current)}` : "行情待同步";
+  const levels = [stop ? `止损 ${price(stop)}` : "", next ? `${next.name || "下一止盈"} ${price(next.price)}` : ""]
+    .filter(Boolean)
+    .join("；");
+  return {
+    title: `${securityDisplayName(position)} 继续观察`,
+    body: `${priceText}${levels ? `；${levels}` : ""}。未触发计划位则自动顺延到下一交易日。`,
+    tone: "watch",
+    tag: "观察",
+  };
+}
+
+function positionHasSyncedPrice(position) {
+  return Boolean(position.lastQuoteAt || position.quote?.time || position.quote);
+}
+
+function securityDisplayName(record) {
+  const name = String(record?.name || "").trim();
+  const symbol = String(record?.symbol || "").trim();
+  if (name && symbol && name !== symbol) return `${name} ${symbol}`;
+  return name || symbol || "未命名标的";
+}
+
+function findPositionForPlanSecurity(item) {
+  const symbol = normalizeSymbol(item?.symbol || "");
+  const name = String(item?.name || "").trim();
+  return getOpenPositions().find((position) => {
+    const positionSymbol = normalizeSymbol(position.symbol || "");
+    const positionName = String(position.name || "").trim();
+    return (symbol && positionSymbol === symbol) || (name && positionName === name);
+  });
+}
+
+function extractFirstNumber(value) {
+  const match = String(value || "").match(/-?\d+(?:\.\d+)?/);
+  return match ? Number(match[0]) : 0;
+}
+
+function holdingLevelLabel(type) {
+  return String(type || "").includes("止损") ? "止损点" : "止盈点";
+}
+
+function holdingConditionText(item, position = null) {
+  const levelLabel = holdingLevelLabel(item.type);
+  const parts = [
+    item.level && `${levelLabel}：${item.level}`,
+    position && positionHasSyncedPrice(position) && `现价：${price(position.currentPrice)}`,
+    item.daily && `日线：${item.daily}`,
+    item.weekly && `周线：${item.weekly}`,
+    item.monthly && `月线：${item.monthly}`,
+    item.macd && `MACD：${item.macd}`,
+    item.kdj && `KDJ：${item.kdj}`,
+    item.note,
+  ].filter(Boolean);
+  return parts.length ? parts.join("；") : `填写${levelLabel}和技术条件，未触发则自动顺延。`;
+}
+
+function watchlistExecutionItems() {
+  return normalizeWatchlistItems(state.routine.watchlistItems).map((item) => ({
+    title: securityDisplayName(item),
+    body: watchlistConditionText(item),
+    tone: "watch",
+    tag: "观察",
+  }));
+}
+
+function watchlistConditionText(item) {
+  const parts = [
+    item.trigger,
+    item.level && `点位：${item.level}`,
+    item.daily && `日线：${item.daily}`,
+    item.weekly && `周线：${item.weekly}`,
+    item.monthly && `月线：${item.monthly}`,
+    item.macd && `MACD：${item.macd}`,
+    item.kdj && `KDJ：${item.kdj}`,
+    item.note,
+  ].filter(Boolean);
+  return parts.length ? parts.join("；") : "等待计划条件触发，未触发则自动顺延。";
 }
 
 function renderChartControls() {
@@ -1813,7 +2089,13 @@ function renderPlanPreview(selector, items) {
 
 function renderPlanBuilder() {
   Object.keys(PLAN_ITEM_CONFIG).forEach((field) => {
-    renderPlanItems(field, normalizePlanItems(state.routine[field]));
+    const items =
+      field === "watchlistItems"
+        ? normalizeWatchlistItems(state.routine[field])
+        : field === "holdingCheckItems"
+          ? normalizeHoldingCheckItems(state.routine[field])
+          : normalizePlanItems(state.routine[field]);
+    renderPlanItems(field, items);
   });
 }
 
@@ -1821,6 +2103,155 @@ function renderPlanItems(field, items = []) {
   const config = PLAN_ITEM_CONFIG[field];
   const container = $(`[data-plan-field="${field}"]`);
   if (!config || !container) return;
+  if (field === "holdingCheckItems") {
+    const rows = normalizeHoldingCheckItems(items, true);
+    const visibleRows = rows.length ? rows : [normalizeHoldingCheckItems([{}], true)[0]];
+    container.innerHTML = `
+      <div class="plan-list-head">
+        <div>
+          <h4>${escapeHTML(config.title)}</h4>
+          <p class="soft-text">只保留止盈检查和止损检查；点位可以写具体价格，也可以写压力位、均线、平台位等条件。</p>
+        </div>
+        <button type="button" class="ghost-button" data-add-plan-item="${field}">＋ ${escapeHTML(config.addLabel)}</button>
+      </div>
+      <div class="plan-items holding-plan-items">
+        ${visibleRows
+          .map((item, index) => {
+            const levelLabel = holdingLevelLabel(item.type);
+            return `
+              <div class="watchlist-plan-row holding-plan-row" data-plan-item="${field}">
+                <div class="plan-item-index">${index + 1}</div>
+                <div class="watchlist-editor">
+                  <div class="watchlist-identity-grid">
+                    <label>
+                      检查类型
+                      <select data-holding-type>
+                        ${config.types
+                          .map((type) => `<option ${type === item.type ? "selected" : ""}>${escapeHTML(type)}</option>`)
+                          .join("")}
+                      </select>
+                    </label>
+                    <label>
+                      股票代码
+                      <input data-holding-symbol placeholder="例如 600519" value="${escapeHTML(item.symbol)}" />
+                    </label>
+                    <label>
+                      股票名称
+                      <input data-holding-name placeholder="例如 贵州茅台" value="${escapeHTML(item.name)}" />
+                    </label>
+                    <label>
+                      <span data-holding-level-label>${escapeHTML(levelLabel)}</span>
+                      <input data-holding-level placeholder="${escapeHTML(levelLabel)}，例如 53.94 / 前高 / 25日线" value="${escapeHTML(item.level)}" />
+                    </label>
+                  </div>
+                  <div class="watchlist-condition-grid">
+                    <label>
+                      日线
+                      <input data-holding-daily placeholder="例如 日线跌破25日线或放量突破" value="${escapeHTML(item.daily)}" />
+                    </label>
+                    <label>
+                      周线
+                      <input data-holding-weekly placeholder="例如 周线MACD红柱收缩" value="${escapeHTML(item.weekly)}" />
+                    </label>
+                    <label>
+                      月线
+                      <input data-holding-monthly placeholder="例如 月线顶背离或趋势未坏" value="${escapeHTML(item.monthly)}" />
+                    </label>
+                    <label>
+                      MACD
+                      <input data-holding-macd placeholder="例如 绿柱放大 / 红柱缩短" value="${escapeHTML(item.macd)}" />
+                    </label>
+                    <label>
+                      KDJ
+                      <input data-holding-kdj placeholder="例如 高位死叉 / 低位金叉" value="${escapeHTML(item.kdj)}" />
+                    </label>
+                  </div>
+                  <label>
+                    备注
+                    <textarea data-holding-note rows="2" placeholder="补充执行动作、顺延规则或失效条件">${escapeHTML(item.note)}</textarea>
+                  </label>
+                </div>
+                <button type="button" class="ghost-button plan-remove-button" data-remove-plan-item="${field}" data-index="${index}" title="删除这一条">×</button>
+              </div>
+            `;
+          })
+          .join("")}
+      </div>
+    `;
+    return;
+  }
+  if (field === "watchlistItems") {
+    const rows = normalizeWatchlistItems(items, true);
+    const visibleRows = rows.length ? rows : [normalizeWatchlistItems([{}], true)[0]];
+    container.innerHTML = `
+      <div class="plan-list-head">
+        <div>
+          <h4>${escapeHTML(config.title)}</h4>
+          <p class="soft-text">代码或名称填一个即可；条件可以写数字、形态或一句完整的交易语言。</p>
+        </div>
+        <button type="button" class="ghost-button" data-add-plan-item="${field}">＋ ${escapeHTML(config.addLabel)}</button>
+      </div>
+      <div class="plan-items watchlist-plan-items">
+        ${visibleRows
+          .map(
+            (item, index) => `
+              <div class="watchlist-plan-row" data-plan-item="${field}">
+                <div class="plan-item-index">${index + 1}</div>
+                <div class="watchlist-editor">
+                  <div class="watchlist-identity-grid">
+                    <label>
+                      股票代码
+                      <input data-watchlist-symbol placeholder="例如 600519" value="${escapeHTML(item.symbol)}" />
+                    </label>
+                    <label>
+                      股票名称
+                      <input data-watchlist-name placeholder="例如 贵州茅台" value="${escapeHTML(item.name)}" />
+                    </label>
+                  </div>
+                  <label>
+                    触发条件
+                    <textarea data-watchlist-trigger rows="2" placeholder="${escapeHTML(config.placeholder)}">${escapeHTML(item.trigger)}</textarea>
+                  </label>
+                  <div class="watchlist-condition-grid">
+                    <label>
+                      点位 / 价位
+                      <input data-watchlist-level placeholder="例如 53.94 / 前高 / 25日线" value="${escapeHTML(item.level)}" />
+                    </label>
+                    <label>
+                      日线
+                      <input data-watchlist-daily placeholder="例如 25日线附近低分型" value="${escapeHTML(item.daily)}" />
+                    </label>
+                    <label>
+                      周线
+                      <input data-watchlist-weekly placeholder="例如 周线突破后缩量回踩" value="${escapeHTML(item.weekly)}" />
+                    </label>
+                    <label>
+                      月线
+                      <input data-watchlist-monthly placeholder="例如 月线趋势未破坏" value="${escapeHTML(item.monthly)}" />
+                    </label>
+                    <label>
+                      MACD
+                      <input data-watchlist-macd placeholder="例如 日线绿柱缩短" value="${escapeHTML(item.macd)}" />
+                    </label>
+                    <label>
+                      KDJ
+                      <input data-watchlist-kdj placeholder="例如 KDJ下到10以下后拐头" value="${escapeHTML(item.kdj)}" />
+                    </label>
+                  </div>
+                  <label>
+                    备注
+                    <textarea data-watchlist-note rows="2" placeholder="补充观察理由、等待周期或失效条件">${escapeHTML(item.note)}</textarea>
+                  </label>
+                </div>
+                <button type="button" class="ghost-button plan-remove-button" data-remove-plan-item="${field}" data-index="${index}" title="删除这一条">×</button>
+              </div>
+            `,
+          )
+          .join("")}
+      </div>
+    `;
+    return;
+  }
   const rows = items.length ? items : [{ type: config.types[0], text: "" }];
   container.innerHTML = `
     <div class="plan-list-head">
@@ -1850,6 +2281,38 @@ function renderPlanItems(field, items = []) {
 
 function readPlanItemsFromEditor(field, keepBlank = false) {
   const rows = $$(`[data-plan-item="${field}"]`);
+  if (field === "holdingCheckItems") {
+    return rows
+      .map((row) => ({
+        type: row.querySelector("[data-holding-type]")?.value || "止盈检查",
+        symbol: normalizeSymbol(row.querySelector("[data-holding-symbol]")?.value || ""),
+        name: row.querySelector("[data-holding-name]")?.value.trim() || "",
+        level: row.querySelector("[data-holding-level]")?.value.trim() || "",
+        daily: row.querySelector("[data-holding-daily]")?.value.trim() || "",
+        weekly: row.querySelector("[data-holding-weekly]")?.value.trim() || "",
+        monthly: row.querySelector("[data-holding-monthly]")?.value.trim() || "",
+        macd: row.querySelector("[data-holding-macd]")?.value.trim() || "",
+        kdj: row.querySelector("[data-holding-kdj]")?.value.trim() || "",
+        note: row.querySelector("[data-holding-note]")?.value.trim() || "",
+      }))
+      .filter((item) => keepBlank || holdingCheckItemHasContent(item));
+  }
+  if (field === "watchlistItems") {
+    return rows
+      .map((row) => ({
+        symbol: normalizeSymbol(row.querySelector("[data-watchlist-symbol]")?.value || ""),
+        name: row.querySelector("[data-watchlist-name]")?.value.trim() || "",
+        trigger: row.querySelector("[data-watchlist-trigger]")?.value.trim() || "",
+        level: row.querySelector("[data-watchlist-level]")?.value.trim() || "",
+        daily: row.querySelector("[data-watchlist-daily]")?.value.trim() || "",
+        weekly: row.querySelector("[data-watchlist-weekly]")?.value.trim() || "",
+        monthly: row.querySelector("[data-watchlist-monthly]")?.value.trim() || "",
+        macd: row.querySelector("[data-watchlist-macd]")?.value.trim() || "",
+        kdj: row.querySelector("[data-watchlist-kdj]")?.value.trim() || "",
+        note: row.querySelector("[data-watchlist-note]")?.value.trim() || "",
+      }))
+      .filter((item) => keepBlank || watchlistItemHasContent(item));
+  }
   return rows
     .map((row) => ({
       type: row.querySelector(`[data-plan-type="${field}"]`)?.value || PLAN_ITEM_CONFIG[field]?.types[0] || "自定义",
@@ -1866,10 +2329,10 @@ function collectRoutinePlanItems() {
 }
 
 function syncRoutineLegacyFields() {
+  state.routine.dailyTaskItems = state.routine.holdingCheckItems || state.routine.dailyTaskItems || [];
   state.routine.weeklyFocus = planItemsToText(state.routine.weeklyFocusItems);
   state.routine.weeklyAvoid = planItemsToText(state.routine.weeklyAvoidItems);
-  state.routine.dailyStrategy = planItemsToText(state.routine.dailyStrategyItems);
-  state.routine.dailyTasks = planItemsToText(state.routine.dailyTaskItems);
+  state.routine.dailyTasks = holdingCheckItemsToText(state.routine.holdingCheckItems);
   state.routine.dailyAvoid = planItemsToText(state.routine.dailyAvoidItems);
 }
 
@@ -1914,29 +2377,6 @@ function generateDailyPlanDraft() {
     .slice(0, 3);
   const highImpactEvent = upcomingEvents.find((event) => event.impact === "高") || upcomingEvents[0];
 
-  const strategyItems = [
-    {
-      type: "市场策略",
-      text: `${state.market.regime}环境，仓位纪律 ${percent(state.market.positionCap, 0)}，开仓纪律 ${guard.permission}；先执行纪律，再判断个股。`,
-    },
-    {
-      type: "开仓策略",
-      text:
-        state.market.allowNew === "false" || guard.blockingChecks.length
-          ? "暂停新增计划外仓位，任何新仓必须先回到纪律总控重新确认。"
-          : state.market.allowNew === "cautious"
-            ? "只允许计划内、高质量、仓位受控的机会；盘中临时信号不作为开仓理由。"
-            : "允许寻找突破和趋势延续机会，但单笔必须有止损、止盈和退出条件。",
-    },
-  ];
-
-  if (highImpactEvent) {
-    strategyItems.push({
-      type: "事件策略",
-      text: `${monthDay(highImpactEvent.date)}关注${eventDisplayTitle(highImpactEvent)}，事件前降低冲动开仓，优先处理已有持仓风险。`,
-    });
-  }
-
   const taskItems = [
     {
       type: "持仓检查",
@@ -1967,21 +2407,54 @@ function generateDailyPlanDraft() {
 
   const avoidItems = [
     {
-      type: "不超仓位",
+      type: "超仓位",
       text: `当前仓位 ${percent(guard.exposure)}，不得突破 ${percent(guard.cap)} 的计划上限。`,
     },
     {
-      type: "不计划外交易",
+      type: "计划外交易",
       text: "没有写清买入依据、止损、止盈和退出条件的机会，不进入开仓。",
     },
     {
-      type: "不追涨",
+      type: "追涨",
       text: highImpactEvent ? "重要事件前不追涨、不赌数据落地后的方向。" : "连续上涨后不因为情绪追价。",
     },
   ];
 
-  state.routine.dailyStrategyItems = strategyItems;
-  state.routine.dailyTaskItems = taskItems;
+  const holdingDraftItems = openPositions.flatMap((position) => {
+    const rows = [];
+    const nextTarget = position.targets.find((target) => target.status !== "done" && num(target.price));
+    if (nextTarget) {
+      rows.push({
+        type: "止盈检查",
+        symbol: position.symbol,
+        name: position.name,
+        level: price(nextTarget.price),
+        daily: "到位按计划分批兑现，不把计划止盈改成临场幻想。",
+        weekly: "",
+        monthly: "",
+        macd: "",
+        kdj: "",
+        note: `${nextTarget.name || "止盈位"}，计划减仓 ${nextTarget.pct || 0}%。`,
+      });
+    }
+    if (num(position.stopLoss)) {
+      rows.push({
+        type: "止损检查",
+        symbol: position.symbol,
+        name: position.name,
+        level: price(position.stopLoss),
+        daily: "跌破止损点先执行风控，再复盘是否重新纳入观察。",
+        weekly: "",
+        monthly: "",
+        macd: "",
+        kdj: "",
+        note: "止损触发不拖延，不用补仓替代风控。",
+      });
+    }
+    return rows;
+  });
+
+  state.routine.holdingCheckItems = holdingDraftItems.length ? holdingDraftItems : taskItems;
   state.routine.dailyAvoidItems = avoidItems;
   syncRoutineLegacyFields();
   saveState();
@@ -3562,11 +4035,13 @@ function tagClass(level) {
 
 function updateEntryCompleteness() {
   const form = $("#tradeForm");
-  const requiredNames = ["symbol", "name", "openedAt", "entryPrice", "shares", "positionPct", "stopLoss", "target1"];
-  const filled = requiredNames.filter((name) => String(form[name].value || "").trim()).length;
+  const requiredNames = ["openedAt", "entryPrice", "shares", "positionPct", "stopLoss", "target1"];
+  const identityFilled = Boolean(String(form.symbol.value || form.name.value || "").trim());
+  const filled = requiredNames.filter((name) => String(form[name].value || "").trim()).length + (identityFilled ? 1 : 0);
+  const totalRequired = requiredNames.length + 1;
   const checkboxes = $$(`#tradeForm input[type="checkbox"]`);
   const checks = checkboxes.filter((input) => input.checked).length;
-  const score = Math.round(((filled / requiredNames.length) * 0.55 + (checks / Math.max(1, checkboxes.length)) * 0.45) * 100);
+  const score = Math.round(((filled / totalRequired) * 0.55 + (checks / Math.max(1, checkboxes.length)) * 0.45) * 100);
   const node = $("#entryCompleteness");
   node.textContent = `完整度 ${score}%`;
   node.classList.toggle("ready", score >= 90);
@@ -4614,6 +5089,13 @@ function setupEvents() {
   $("#tradeForm").addEventListener("submit", (event) => {
     event.preventDefault();
     const form = event.currentTarget;
+    const symbolValue = normalizeSymbol(form.symbol.value);
+    const nameValue = form.name.value.trim();
+    if (!symbolValue && !nameValue) {
+      toast("股票代码或股票名称至少填写一个");
+      form.symbol.focus();
+      return;
+    }
     const checkboxes = $$(`#tradeForm input[type="checkbox"]`);
     const checks = checkboxes.filter((input) => input.checked).length;
     if (checks < checkboxes.length) {
@@ -4644,8 +5126,8 @@ function setupEvents() {
 
     const position = {
       id: positionId,
-      symbol: form.symbol.value.trim(),
-      name: form.name.value.trim(),
+      symbol: symbolValue || nameValue,
+      name: nameValue || symbolValue,
       openedAt: form.openedAt.value,
       entryPrice: num(form.entryPrice.value),
       currentPrice: num(form.entryPrice.value),
@@ -4727,7 +5209,7 @@ function setupEvents() {
     updateEntryCompleteness();
     render();
     showView("positions");
-    toast("开仓记录已保存");
+    toast(symbolValue ? "开仓记录已保存" : "开仓记录已保存；补充股票代码后可自动同步行情");
   });
 
   $("#journalForm").addEventListener("submit", (event) => {
@@ -4786,6 +5268,18 @@ function setupEvents() {
       items.splice(index, 1);
       renderPlanItems(field, items);
     }
+  });
+
+  $("#routinePlanForm").addEventListener("change", (event) => {
+    const typeSelect = event.target.closest("[data-holding-type]");
+    if (!typeSelect) return;
+    const row = typeSelect.closest('[data-plan-item="holdingCheckItems"]');
+    if (!row) return;
+    const label = holdingLevelLabel(typeSelect.value);
+    const labelNode = row.querySelector("[data-holding-level-label]");
+    const input = row.querySelector("[data-holding-level]");
+    if (labelNode) labelNode.textContent = label;
+    if (input) input.placeholder = `${label}，例如 53.94 / 前高 / 25日线`;
   });
 
   $("#routinePlanForm").addEventListener("submit", (event) => {
