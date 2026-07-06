@@ -583,6 +583,20 @@ button {
   color: #991b1b;
 }
 
+#trade.active #entryCompleteness {
+  position: fixed;
+  top: 24px;
+  right: 28px;
+  z-index: 40;
+  min-width: 118px;
+  border: 1px solid rgba(183, 121, 31, 0.18);
+  box-shadow: 0 12px 28px rgba(17, 24, 39, 0.14);
+}
+
+#trade.active #entryCompleteness.ready {
+  border-color: rgba(180, 35, 24, 0.18);
+}
+
 .count-badge {
   background: var(--surface-2);
   color: var(--ink);
@@ -1224,9 +1238,28 @@ td {
   margin-top: 8px;
 }
 
-.price-input {
-  width: 96px;
-  min-height: 34px;
+.position-price-stack {
+  display: grid;
+  gap: 4px;
+  min-width: 128px;
+}
+
+.position-price-stack span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.position-price-stack strong {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.position-price-stack em {
+  color: var(--muted);
+  font-size: 11px;
+  font-style: normal;
+  line-height: 1.35;
 }
 
 .entry-guard-panel {
@@ -1516,6 +1549,11 @@ input:disabled {
 .tag.red {
   background: #fee2e2;
   color: #991b1b;
+}
+
+.tag.stop {
+  background: #dcfce7;
+  color: #166534;
 }
 
 .tag.green {

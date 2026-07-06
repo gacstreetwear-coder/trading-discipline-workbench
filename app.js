@@ -30,12 +30,20 @@ const money = (value) =>
   }).format(value || 0);
 
 const price = (value) =>
-  new Intl.NumberFormat("zh-CN", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value || 0);
+  formatPrice(value);
 
 const percent = (value, digits = 1) => `${Number(value || 0).toFixed(digits)}%`;
+const signedPercent = (value, digits = 2) => `${num(value) > 0 ? "+" : ""}${percent(value, digits)}`;
+
+function formatPrice(value) {
+  const number = num(value);
+  const hasFourDecimalPrecision = Math.abs(number * 100 - Math.round(number * 100)) > 0.000001;
+  const digits = hasFourDecimalPrecision ? 4 : 2;
+  return new Intl.NumberFormat("zh-CN", {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(number);
+}
 const EVENT_CATEGORIES = ["宏观经济数据", "重大会议", "重点公司事件"];
 const MANAGED_OFFICIAL_EVENT_SOURCES = new Set([
   "nbs",
@@ -470,6 +478,17 @@ function planItemsToText(items) {
     .join("\n");
 }
 
+function splitLegacySupportResistance(value) {
+  const text = String(value || "").trim();
+  if (!text) return { support: "", resistance: "" };
+  const supportMatch = text.match(/支撑(?:位)?[：:\s]*([^，,；;]+(?:[，,；;]\s*[^压阻]+)?)/);
+  const resistanceMatch = text.match(/(?:压力|阻力)(?:位)?[：:\s]*([^，,；;]+)/);
+  return {
+    support: (supportMatch?.[1] || (!resistanceMatch ? text : "")).trim(),
+    resistance: (resistanceMatch?.[1] || "").trim(),
+  };
+}
+
 function ensureStateShape() {
   const defaults = defaultState();
   state.settings = state.settings || {};
@@ -526,6 +545,11 @@ function ensureStateShape() {
   state.positions.forEach((position) => {
     position.targets = Array.isArray(position.targets) ? position.targets : [];
     position.status = position.status || "open";
+    if (!position.supportLevel && !position.resistanceLevel && position.supportResistance) {
+      const levels = splitLegacySupportResistance(position.supportResistance);
+      position.supportLevel = levels.support;
+      position.resistanceLevel = levels.resistance;
+    }
   });
   state.events.forEach((event) => {
     event.category = normalizeEventCategory(event.category);
@@ -698,6 +722,12 @@ function positionPnl(position) {
 function positionPnlPct(position) {
   if (!position.entryPrice) return 0;
   return ((num(position.currentPrice) - num(position.entryPrice)) / num(position.entryPrice)) * 100;
+}
+
+function levelReturnPct(position, levelPrice) {
+  const entry = num(position?.entryPrice);
+  if (!entry) return 0;
+  return ((num(levelPrice) - entry) / entry) * 100;
 }
 
 function realizedPnl() {
@@ -1117,9 +1147,15 @@ async function syncMarketData(options = {}) {
       position.name = result.name || position.name;
       position.currentPrice = result.currentPrice || position.currentPrice;
       position.quote = result.quote;
+      position.lastQuoteAt = result.quote?.time || payload.updatedAt;
+      position.lastQuoteError = "";
       position.techSummary = result.summary || {};
       position.latestIndicator = result.latestIndicator || {};
       state.marketData.quotes[result.symbol] = result.quote;
+    });
+    (payload.errors || []).forEach((error) => {
+      const failed = positions.find((position) => String(position.symbol) === String(error.symbol));
+      if (failed) failed.lastQuoteError = error.message || "行情同步失败";
     });
     state.marketData.lastScanAt = payload.updatedAt;
 
@@ -1137,7 +1173,16 @@ async function syncMarketData(options = {}) {
     render();
 
     const errors = payload.errors || [];
-    if (!silent) toast(errors.length ? `行情已同步，${errors.length} 个标的失败` : "行情已同步");
+    const warnings = payload.warnings || [];
+    if (!silent) {
+      if (errors.length) {
+        toast(`行情已同步，${errors.length} 个标的失败：${errors.map((item) => item.symbol).join("、")}`);
+      } else if (warnings.length) {
+        toast(`现价已同步，${warnings.length} 个标的K线待重试`);
+      } else {
+        toast("行情已同步");
+      }
+    }
     return payload;
   } catch (error) {
     if (!silent) toast(error.message || "同步失败，请确认本地服务已启动");
@@ -1316,6 +1361,7 @@ function renderIndicatorSelects() {
 function positionCardTemplate(position) {
   const pnl = positionPnl(position);
   const quote = position.quote || {};
+  const hasSyncedPrice = Boolean(position.lastQuoteAt || quote.time || position.quote);
   return `
     <article class="position-card">
       <div class="position-card-head">
@@ -1327,7 +1373,7 @@ function positionCardTemplate(position) {
       </div>
       <div class="${pnl >= 0 ? "positive" : "negative"}" style="font-weight:800;font-size:22px">${money(pnl)}</div>
       <div class="position-card-grid">
-        <div><span class="mini-label">现价</span><br />${price(position.currentPrice)}</div>
+        <div><span class="mini-label">现价</span><br />${hasSyncedPrice ? price(position.currentPrice) : "待同步"}</div>
         <div><span class="mini-label">止损</span><br />${price(position.stopLoss)}</div>
         <div><span class="mini-label">仓位</span><br />${percent(position.positionPct)}</div>
       </div>
@@ -1402,10 +1448,20 @@ function renderPositions() {
     ? `${rows
         .map((position) => {
           const pnl = positionPnl(position);
+          const quoteSyncedAt = position.lastQuoteAt || position.quote?.time || "";
+          const hasSyncedPrice = Boolean(quoteSyncedAt || position.quote);
+          const currentPriceText = hasSyncedPrice ? price(position.currentPrice) : "待同步";
+          const currentPriceHint = position.lastQuoteError
+            ? `失败：${escapeHTML(position.lastQuoteError)}`
+            : hasSyncedPrice
+              ? quoteSyncedAt
+                ? `行情 ${formatDateTime(quoteSyncedAt)}`
+                : "行情已同步"
+              : "点击刷新自动更新";
           const targets = position.targets
             .map(
               (target) =>
-                `<span class="tag ${target.status === "done" ? "red" : "amber"}">${escapeHTML(target.name)} ${price(target.price)} / ${target.pct}%</span>`,
+                `<span class="tag red" title="计划减仓 ${target.pct}%">${escapeHTML(target.name)} ${price(target.price)} / ${signedPercent(levelReturnPct(position, target.price))}</span>`,
             )
             .join(" ");
 
@@ -1417,8 +1473,11 @@ function renderPositions() {
                 ${position.status === "closed" ? `<div class="tag">已清仓</div>` : ""}
               </td>
               <td>
-                ${price(position.entryPrice)}<br />
-                <input class="price-input" type="number" step="0.01" min="0" value="${position.currentPrice}" data-price-id="${position.id}" title="更新当前价" />
+                <div class="position-price-stack">
+                  <span>成本 <strong>${price(position.entryPrice)}</strong></span>
+                  <span>现价 <strong>${currentPriceText}</strong></span>
+                  <em class="${position.lastQuoteError ? "bad-text" : ""}">${currentPriceHint}</em>
+                </div>
               </td>
               <td>${position.shares}</td>
               <td>${percent(position.positionPct)}</td>
@@ -1428,7 +1487,7 @@ function renderPositions() {
               </td>
               <td>
                 <div style="display:grid;gap:8px">
-                  <span class="tag amber">止损 ${price(position.stopLoss)}</span>
+                  <span class="tag stop">止损 ${price(position.stopLoss)} / ${signedPercent(levelReturnPct(position, position.stopLoss))}</span>
                   <span>${targets}</span>
                   ${techSummaryTemplate(position)}
                   <span class="soft-text">${escapeHTML(position.exitSignal || "")}</span>
@@ -1470,17 +1529,6 @@ function renderPositions() {
 
   $$("[data-position-add-row]").forEach((row) => {
     row.addEventListener("click", () => showView("trade"));
-  });
-
-  $$("[data-price-id]").forEach((input) => {
-    input.addEventListener("change", (event) => {
-      const position = getPosition(event.target.dataset.priceId);
-      if (!position) return;
-      position.currentPrice = num(event.target.value);
-      saveState();
-      render();
-      toast("当前价已更新");
-    });
   });
 
   $$("[data-sell-id]").forEach((button) => {
@@ -2781,7 +2829,7 @@ function entryCompletenessScore(position) {
     "kdj",
     "volume",
     "marketAlignment",
-    "supportResistance",
+    "supportLevel",
     "trendHold",
     "exitSignal",
   ];
@@ -4416,7 +4464,7 @@ function setupEvents() {
       name: form.name.value.trim(),
       openedAt: form.openedAt.value,
       entryPrice: num(form.entryPrice.value),
-      currentPrice: num(form.currentPrice.value) || num(form.entryPrice.value),
+      currentPrice: num(form.entryPrice.value),
       shares: num(form.shares.value),
       originalShares: num(form.shares.value),
       positionPct: num(form.positionPct.value),
@@ -4432,7 +4480,11 @@ function setupEvents() {
       kdj: form.kdj.value.trim(),
       volume: form.volume.value.trim(),
       marketAlignment: form.marketAlignment.value.trim(),
-      supportResistance: form.supportResistance.value.trim(),
+      supportLevel: form.supportLevel.value.trim(),
+      resistanceLevel: form.resistanceLevel.value.trim(),
+      supportResistance: [form.supportLevel.value.trim() && `支撑 ${form.supportLevel.value.trim()}`, form.resistanceLevel.value.trim() && `压力 ${form.resistanceLevel.value.trim()}`]
+        .filter(Boolean)
+        .join("，"),
       stopLoss: num(form.stopLoss.value),
       trendHold: form.trendHold.value.trim(),
       exitSignal: form.exitSignal.value.trim(),

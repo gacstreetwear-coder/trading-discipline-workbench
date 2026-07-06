@@ -381,9 +381,10 @@ def event_payload(date: str, category: str, market: str, title: str, impact: str
 
 
 def normalize_symbol(symbol: str) -> str:
-    cleaned = re.sub(r"[^0-9]", "", str(symbol or ""))
+    raw = str(symbol or "").strip().lower()
+    cleaned = re.sub(r"[^0-9]", "", raw)
     if len(cleaned) != 6:
-        raise ValueError("股票代码需要是 6 位数字")
+        raise ValueError("A股行情同步需要 6 位数字代码，例如 600519、000001、300750")
     return cleaned
 
 
@@ -694,6 +695,8 @@ def get_eastmoney_candles(code: str, days: int) -> dict:
                 "turnover": safe_float(fields[10]),
             }
         )
+    if not candles:
+        raise ValueError(f"未获取到 {code} 的东方财富K线")
 
     result = {
         "symbol": code,
@@ -744,6 +747,8 @@ def get_sina_candles(code: str, days: int) -> dict:
             }
         )
         previous_close = close
+    if not candles:
+        raise ValueError(f"未获取到 {code} 的新浪K线")
 
     result = {
         "symbol": code,
@@ -835,42 +840,51 @@ def get_yahoo_candles(code: str, days: int) -> dict:
 def scan_positions(positions: list[dict]) -> dict:
     results = []
     errors = []
+    warnings = []
     for item in positions:
         symbol = item.get("symbol")
         try:
             quote = get_quote(symbol)
-            candles = get_candles(symbol, 180)
-            latest = candles["candles"][-1] if candles["candles"] else {}
-            results.append(
-                {
-                    "id": item.get("id"),
-                    "symbol": quote["symbol"],
-                    "name": quote["name"],
-                    "currentPrice": quote["currentPrice"],
-                    "quote": quote,
-                    "summary": candles.get("summary", {}),
-                    "latestIndicator": {
-                        "date": latest.get("date"),
-                        "ma5": latest.get("ma5"),
-                        "ma10": latest.get("ma10"),
-                        "ma20": latest.get("ma20"),
-                        "ma60": latest.get("ma60"),
-                        "macd": latest.get("macd"),
-                        "dif": latest.get("dif"),
-                        "dea": latest.get("dea"),
-                        "k": latest.get("k"),
-                        "d": latest.get("d"),
-                        "j": latest.get("j"),
-                    },
-                }
-            )
         except Exception as exc:  # noqa: BLE001
             errors.append({"symbol": symbol, "message": str(exc)})
+            continue
+
+        candles = {"candles": [], "summary": {}}
+        try:
+            candles = get_candles(symbol, 180)
+        except Exception as exc:  # noqa: BLE001
+            warnings.append({"symbol": symbol, "message": f"K线未同步：{exc}"})
+
+        latest = candles["candles"][-1] if candles.get("candles") else {}
+        results.append(
+            {
+                "id": item.get("id"),
+                "symbol": quote["symbol"],
+                "name": quote["name"],
+                "currentPrice": quote["currentPrice"],
+                "quote": quote,
+                "summary": candles.get("summary", {}),
+                "latestIndicator": {
+                    "date": latest.get("date"),
+                    "ma5": latest.get("ma5"),
+                    "ma10": latest.get("ma10"),
+                    "ma20": latest.get("ma20"),
+                    "ma60": latest.get("ma60"),
+                    "macd": latest.get("macd"),
+                    "dif": latest.get("dif"),
+                    "dea": latest.get("dea"),
+                    "k": latest.get("k"),
+                    "d": latest.get("d"),
+                    "j": latest.get("j"),
+                },
+            }
+        )
 
     return {
         "updatedAt": datetime.now().isoformat(timespec="seconds"),
         "results": results,
         "errors": errors,
+        "warnings": warnings,
     }
 
 

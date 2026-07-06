@@ -275,7 +275,7 @@
                 </label>
                 <label>
                   买入价格
-                  <input name="entryPrice" type="number" min="0" step="0.01" required />
+                  <input name="entryPrice" type="number" min="0" step="0.0001" required />
                 </label>
                 <label>
                   买入数量
@@ -353,8 +353,12 @@
                   <input name="marketAlignment" placeholder="例如 板块强于指数，指数处于进攻窗口" />
                 </label>
                 <label>
-                  支撑 / 压力
-                  <input name="supportResistance" placeholder="例如 支撑 36.2，压力 39.8 / 42.5" />
+                  支撑位
+                  <input name="supportLevel" placeholder="例如 47.66 / 20日线 / 平台下沿" />
+                </label>
+                <label>
+                  压力位
+                  <input name="resistanceLevel" placeholder="例如 53.94 / 前高；创新高可留空" />
                 </label>
               </div>
             </section>
@@ -364,11 +368,11 @@
               <div class="fields two">
                 <label>
                   止损价
-                  <input name="stopLoss" type="number" min="0" step="0.01" required />
+                  <input name="stopLoss" type="number" min="0" step="0.0001" required />
                 </label>
                 <label>
                   第一止盈价
-                  <input name="target1" type="number" min="0" step="0.01" required />
+                  <input name="target1" type="number" min="0" step="0.0001" required />
                 </label>
                 <label>
                   第一减仓比例
@@ -376,15 +380,11 @@
                 </label>
                 <label>
                   第二止盈价
-                  <input name="target2" type="number" min="0" step="0.01" />
+                  <input name="target2" type="number" min="0" step="0.0001" />
                 </label>
                 <label>
                   第二减仓比例
                   <input name="target2Pct" type="number" min="0" max="100" step="1" value="25" />
-                </label>
-                <label>
-                  当前价
-                  <input name="currentPrice" type="number" min="0" step="0.01" />
                 </label>
               </div>
               <div class="fields">
@@ -876,7 +876,7 @@
           </label>
           <label>
             卖出价格
-            <input name="price" type="number" min="0" step="0.01" required />
+            <input name="price" type="number" min="0" step="0.0001" required />
           </label>
           <label>
             卖出数量
